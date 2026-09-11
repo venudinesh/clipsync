@@ -120,15 +120,6 @@ sub = doc.add_paragraph(
     "Your clipboard, with a brain — and nothing ever leaves your machine.")
 sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-meta = [
-    ("Version", "1.1.1+2 (application)"),
-    ("Date", "September 2026"),
-    ("Author", "venudinesh"),
-    ("Repository", "github.com/venudinesh/clipsync"),
-    ("License", "MIT"),
-    ("Status", "Source only — no binary releases attached"),
-]
-table(["", ""], meta)
 cap = doc.add_paragraph(
     "Product documentation: what the app does, how it keeps your data "
     "yours, and how to build and verify it yourself.")
