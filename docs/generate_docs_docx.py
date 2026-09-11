@@ -251,13 +251,6 @@ table(
         ["test/", "The test suite"],
     ])
 
-# ── 7 ──
-h1("7  License")
-p("MIT — do what you like, just keep the notice.")
-p("This document describes the source as it stands. There are no binary "
-  "releases attached to the repository; every build above reproduces from "
-  "this tree.")
-
 if __name__ == "__main__":
     import os
     here = os.path.dirname(os.path.abspath(__file__))
