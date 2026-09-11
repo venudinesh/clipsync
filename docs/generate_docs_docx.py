@@ -23,14 +23,14 @@ doc = Document()
 # ── Base styles ──────────────────────────────────────────────────────────
 normal = doc.styles["Normal"]
 normal.font.name = "Calibri"
-normal.font.size = Pt(10.5)
+normal.font.size = Pt(12)
 normal.font.color.rgb = INK
 normal.paragraph_format.space_after = Pt(6)
 normal.paragraph_format.line_spacing = 1.2
 
-for name, size, color, before in (
-    ("Heading 1", 18, INK, 18),
-    ("Heading 2", 13, SAGE, 12),
+for name, size, leading, color, before in (
+    ("Heading 1", 18, 22, INK, 18),
+    ("Heading 2", 14, 18, SAGE, 12),
 ):
     st = doc.styles[name]
     st.font.name = "Calibri"
@@ -72,6 +72,7 @@ def table(headers, rows):
         cell.text = ""
         run = cell.paragraphs[0].add_run(htxt)
         run.bold = True
+        run.font.size = Pt(14)
     for r, row in enumerate(rows, start=1):
         for i, txt in enumerate(row):
             t.rows[r].cells[i].text = txt
@@ -85,7 +86,7 @@ def code_block(text):
         para.paragraph_format.space_before = Pt(0)
         run = para.add_run(line if line else " ")
         run.font.name = "Consolas"
-        run.font.size = Pt(9)
+        run.font.size = Pt(12)
         shading = OxmlElement("w:shd")
         shading.set(qn("w:fill"), "F2F2F4")
         para.paragraph_format.element.append(shading)
@@ -107,10 +108,13 @@ def add_toc():
     run2._r.append(instr)
     run3 = para.add_run()
     run3._r.append(fld2)
-    note = doc.add_paragraph(
+    # Run-level formatting on purpose: touching the shared Normal style here
+    # would shrink and grey every paragraph after this note.
+    note = doc.add_paragraph()
+    nrun = note.add_run(
         "Right-click → Update Field in Word to fill the page numbers.")
-    note.style.font.size = Pt(9)
-    note.style.font.color.rgb = MUTED
+    nrun.font.size = Pt(10)
+    nrun.font.color.rgb = MUTED
 
 
 # ── Cover ────────────────────────────────────────────────────────────────
