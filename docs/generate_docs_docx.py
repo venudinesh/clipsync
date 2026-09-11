@@ -149,36 +149,28 @@ table(
     [
         ["Android 7.0+", "Full app: clips, chat, notes, OCR, voice, share "
          "sheet, quick tile", "4 GB RAM, 1–5 GB for models"],
-        ["Windows 7–11", "Single no-installer program (~23 MB), tray, "
-         "global hotkeys, history popup", ".NET Framework 4.0+"],
-        ["Linux", ".deb / .rpm / portable tarball via CI",
-         "GTK 3, Secret Service, zenity"],
-        ["macOS 12+", ".dmg / .zip for Apple Silicon and Intel via CI",
-         "Right-click → Open on first launch"],
     ])
 
 # ── 2 ──
-h1("2  Two apps, one repo, zero cloud")
-p("The repository builds two separate programs. Same idea, each one native "
-  "to its home:")
+h1("2  One app, on your phone")
+p("ClipSync AI is an Android app that loads a GGUF model straight into "
+  "llama.cpp inside its own process. Your phone becomes the AI server: "
+  "Qwen 0.5B up to Llama 7B, depending on RAM.")
 bullets([
-    "Android, Linux and macOS — one Flutter app. It loads a GGUF model "
-    "straight into llama.cpp inside its own process. Your device becomes "
-    "the AI server: Qwen 0.5B up to Llama 7B, depending on RAM.",
-    "Windows — a native C# program. A single no-installer executable that "
-    "carries its own llama.cpp runtime inside it. Pick a GGUF from the "
-    "catalogue or import your own; with no model at all, a built-in engine "
-    "still cleans, classifies and tags every clip.",
-    "Neither one has ever sent a single clip anywhere. That is not a "
-    "setting — there is simply no code that does it.",
+    "No account, no server, no telemetry — it works with the Wi-Fi off.",
+    "With no model at all, a built-in engine still cleans, classifies and "
+    "tags every clip, and the app is honest about which buttons need a "
+    "model and hides the ones that don't.",
+    "It has never sent a single clip anywhere. That is not a setting — "
+    "there is simply no code that does it.",
 ])
 
 # ── 3 ──
 h1("3  What it does, in plain words")
 h2("Clips")
 bullets([
-    "Automatic capture — everything you copy is kept, with a quiet "
-    "background service on Android and a tray watcher on Windows.",
+    "Automatic capture — everything you copy is kept by a quiet background "
+    "service.",
     "Search that understands — keyword search always works, ranked by "
     "relevance (titles beat tags, tags beat bodies, rare words beat common "
     "ones). Load the small indexing model and the feed ranks by meaning: "
@@ -201,16 +193,15 @@ bullets([
     "through an explicit, twice-confirmed opt-in.",
     "Notes — a markdown editor with tags, search, and an AI bar "
     "(summarise, expand, fix grammar, action items), every action undoable.",
-    "Capture — camera OCR, screen-region capture, dictation. On Android: "
-    "share text into Clips from any app’s share sheet, or file the "
-    "clipboard from a Quick Settings tile. On Windows: Ctrl+Shift+H opens "
-    "a history popup that pastes back into whatever you are working in.",
+    "Capture — camera OCR, dictation, and results you can edit before "
+    "saving. Share text into Clips from any app’s share sheet, or file the "
+    "clipboard from a Quick Settings tile without opening the app.",
 ])
 h2("Privacy controls")
 bullets([
     "App lock — a PIN over the whole app, asked on launch and on every "
     "return from the background. Fingerprint or face unlocks it where the "
-    "hardware exists (Android, macOS).",
+    "hardware exists.",
     "Clip lifetime — keep clips forever, a day, a week, or a month. "
     "Expired, unpinned clips burn on launch. Pinned clips are never dropped.",
     "Export or wipe — everything out as markdown or JSON, or gone with "
@@ -223,74 +214,45 @@ bullets([
     "On-device inference. The model file lives in your app folder. Words go "
     "in, answers come out, nothing in between touches a network.",
     "Encrypted storage. AES-256 throughout — clips, notes, chats, settings, "
-    "each with its own key. Android keys live in the system keystore; "
-    "Windows keys are locked to your Windows account.",
-    "Secrets never land. Auto-redact, the refuse-to-save filter, per-clip "
-    "redaction, and lifetimes compose into real defence in depth.",
-    "The ten-second audit. Turn on airplane mode (or pull the PC’s network "
-    "cable). Everything keeps working except model downloads.",
+    "each with its own key, and the keys live in the system keystore.",
+    "Secrets never land. Auto-redact, per-clip redaction, and lifetimes "
+    "compose into real defence in depth.",
+    "The ten-second audit. Turn on airplane mode. Everything keeps working "
+    "except model downloads.",
 ])
 h2("Honest limits")
 bullets([
-    "The Windows build keeps PIN-only locking: Windows Hello needs the full "
-    "Windows SDK to compile against, which the offline build deliberately "
-    "avoids.",
-    "The Windows build ranks search by keywords; meaning vectors need an "
-    "embedding runtime its native engine does not expose.",
-    "Fresh unsigned builds can startle antivirus — a clipboard watcher with "
-    "hotkeys sounds like spyware until you read the code.",
+    "Models are hungry: small ones want 4 GB of RAM, bigger ones 6–8 GB+, "
+    "plus room for the weight files.",
+    "The background service shows a quiet notification — Android’s rule "
+    "for anything that keeps working while the app is closed.",
 ])
 
 # ── 5 ──
-h1("5  Everyday keys (Windows)")
-table(
-    ["Shortcut", "Does"],
-    [
-        ["Ctrl+Shift+V", "Summon the window"],
-        ["Ctrl+Shift+C", "Tidy the clipboard in place"],
-        ["Ctrl+Shift+H", "History popup — pick a clip, Enter pastes it back"],
-    ])
-p("All three are re-recordable in Settings — press the keys, no typing "
-  "required.")
-
-# ── 6 ──
-h1("6  Build it yourself")
+h1("5  Build it yourself")
 h2("Android")
 code_block("flutter pub get\n"
            "flutter build apk --release   # → build/app/outputs/flutter-apk/")
-h2("Windows")
-p("You need… nothing. The C# compiler already lives inside Windows:")
-code_block("windows\\build.cmd   # tests first, then x86 + x64 exes")
 h2("Check the work")
-code_block("flutter analyze && flutter test   # 249 Flutter tests\n"
-           "windows\\build.cmd tests          # 600 desktop tests")
-h2("Linux and macOS (GitHub Actions)")
-p("Desktop binaries build entirely in the cloud via "
-  ".github/workflows/desktop.yml — push to main or run the workflow by "
-  "hand, then download the .deb, .rpm, .tar.xz, .dmg and .zip artifacts "
-  "from the green run.")
+code_block("flutter analyze && flutter test   # 249 Flutter tests")
 
-# ── 7 ──
-h1("7  Project map")
+# ── 6 ──
+h1("6  Project map")
 table(
     ["Path", "What lives there"],
     [
-        ["lib/main.dart", "The Flutter app: clips feed, chat, notes, "
-         "capture, settings, lock screen"],
+        ["lib/main.dart", "The app: clips feed, chat, notes, capture, "
+         "settings, lock screen"],
         ["lib/services/", "On-device LLM, embeddings, biometrics, "
          "storage, catalogues"],
         ["lib/features/ + lib/ui/", "History, sheets, and the Liquid "
          "Glass design system"],
-        ["windows/src/", "The native Windows app (C# / WinForms)"],
-        ["windows/tests/", "The desktop test suite"],
         ["android/", "Native shell: service, share sheet, quick tile"],
-        ["linux/ macos/", "Desktop Flutter scaffolding"],
-        ["test/", "The Flutter test suite"],
-        [".github/workflows/", "Linux + macOS build pipeline"],
+        ["test/", "The test suite"],
     ])
 
-# ── 8 ──
-h1("8  License")
+# ── 7 ──
+h1("7  License")
 p("MIT — do what you like, just keep the notice.")
 p("This document describes the source as it stands. There are no binary "
   "releases attached to the repository; every build above reproduces from "
