@@ -33,6 +33,7 @@ namespace ClipSyncAI.Tests
                 RegexTests.Run();
                 TidyTests.Run();
                 JoinTests.Run();
+                SecretsTests.Run();
                 CoreTests.Run();
                 MarkdownTests.Run();
                 ShellTests.Run();

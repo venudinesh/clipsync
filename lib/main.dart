@@ -380,6 +380,102 @@ class ClipEntry {
 /// The rule drawn between clips when they are joined into one.
 const String kClipJoinSeparator = '\n\n---\n\n';
 
+/// What one redaction run caught: the masked text and how many secrets it held.
+typedef RedactionResult = ({String text, int count});
+
+/// One recognisable secret shape and the label its mask carries.
+class _SecretPattern {
+  const _SecretPattern(this.pattern, this.label);
+  final RegExp pattern;
+  final String label;
+}
+
+/// Masks API keys, tokens, passwords and private keys in [text], replacing
+/// each with a labelled `[redacted:kind]` marker and reporting how many were
+/// caught. Pure regex, no model needed, so it works the same offline on every
+/// platform — and running it twice is a no-op, because a marker is never a
+/// secret worth masking again.
+RedactionResult redactSecrets(String text) {
+  var out = text;
+  var count = 0;
+
+  String mark(String label) => '[redacted:$label]';
+
+  final fixed = <_SecretPattern>[
+    _SecretPattern(RegExp(r'sk-ant-[A-Za-z0-9_-]{10,}'), 'anthropic-key'),
+    _SecretPattern(RegExp(r'sk-proj-[A-Za-z0-9_-]{20,}'), 'openai-key'),
+    _SecretPattern(RegExp(r'sk-[A-Za-z0-9_-]{20,}'), 'openai-key'),
+    _SecretPattern(
+      RegExp(r'(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{20,})'),
+      'github-token',
+    ),
+    _SecretPattern(RegExp(r'AKIA[0-9A-Z]{16}'), 'aws-access-key'),
+    _SecretPattern(RegExp(r'AIza[0-9A-Za-z\-_]{35}'), 'google-api-key'),
+    _SecretPattern(RegExp(r'xox[bpas]-[A-Za-z0-9-]{10,}'), 'slack-token'),
+    _SecretPattern(
+      RegExp(r'(?:sk_live|rk_live)_[A-Za-z0-9]{16,}'),
+      'stripe-secret-key',
+    ),
+    _SecretPattern(
+      RegExp(r'Bearer\s+[A-Za-z0-9\-._~+/]+=*'),
+      'bearer-token',
+    ),
+  ];
+  for (final p in fixed) {
+    out = out.replaceAllMapped(p.pattern, (m) {
+      count++;
+      return mark(p.label);
+    });
+  }
+
+  // JWTs: three base64url parts. Trailing prose punctuation (a sentence ending
+  // in a token) is not part of the token, so it is hung back on afterwards.
+  out = out.replaceAllMapped(
+    RegExp(r'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'),
+    (m) {
+      var token = m.group(0)!;
+      var tail = '';
+      while (token.isNotEmpty && '.,;:!?)]}\'"'.contains(token[token.length - 1])) {
+        tail = token[token.length - 1] + tail;
+        token = token.substring(0, token.length - 1);
+      }
+      count++;
+      return mark('jwt') + tail;
+    },
+  );
+
+  // PEM private key blocks, whatever fits between the fences.
+  out = out.replaceAllMapped(
+    RegExp(
+      r'-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----',
+    ),
+    (m) {
+      count++;
+      return mark('private-key');
+    },
+  );
+
+  // `password: hunter2`, `api_key="abc"`, `clientSecret: xyz`. The whole key
+  // name is kept so the marker says what was caught; a value that is already
+  // a marker is left alone, which is what makes a second run a no-op.
+  out = out.replaceAllMapped(
+    RegExp(
+      r'''([A-Za-z0-9_.\-]*?(?:api[_-]?key|secret|passwd|password|pwd|auth[_-]?token|access[_-]?token|client[_-]?secret)[A-Za-z0-9_.\-]*)\s*[:=]\s*(["']?)([^\s"'`,;]+)\2''',
+      caseSensitive: false,
+    ),
+    (m) {
+      final key = m.group(1)!;
+      final quote = m.group(2)!;
+      final value = m.group(3)!;
+      if (value.startsWith('[redacted:')) return m.group(0)!;
+      count++;
+      return '$key=$quote${mark(key.toLowerCase())}$quote';
+    },
+  );
+
+  return (text: out, count: count);
+}
+
 /// Joins [clips] into a single new clip, oldest first so the result reads in
 /// the order the clips were captured. Each side prefers its own body and falls
 /// back to the other when that one is empty, so a clip that came through the
@@ -1836,6 +1932,39 @@ class _DashboardViewState extends State<DashboardView>
     setState(() {});
   }
 
+  /// Masks API keys, tokens and passwords inside the clip, in the original and
+  /// the formatted text alike, so the secret stops being saved or shown
+  /// anywhere in the app. Needs no model: the masks are plain regex, which is
+  /// also why a second tap finds nothing left to hide.
+  void _redactClip(ClipEntry entry) {
+    final raw = redactSecrets(entry.rawText);
+    final same = entry.processedMarkdown == entry.rawText;
+    final formatted = same ? raw : redactSecrets(entry.processedMarkdown);
+    final n = same ? raw.count : raw.count + formatted.count;
+    if (n == 0) {
+      _toast('No secrets found in this clip');
+      return;
+    }
+    final prevRaw = entry.rawText;
+    final prevFormatted = entry.processedMarkdown;
+    _clipBox.put(
+      entry.id,
+      entry
+          .copyWith(rawText: raw.text, processedMarkdown: formatted.text)
+          .toMap(),
+    );
+    setState(() {});
+    _toast('Redacted ${plural(n, 'secret')}', undo: () {
+      _clipBox.put(
+        entry.id,
+        entry
+            .copyWith(rawText: prevRaw, processedMarkdown: prevFormatted)
+            .toMap(),
+      );
+      setState(() {});
+    });
+  }
+
   void _toggleSelectMode() {
     setState(() {
       _selecting = !_selecting;
@@ -2379,6 +2508,15 @@ class _DashboardViewState extends State<DashboardView>
           onTap: () {
             Navigator.pop(ctx);
             _addClipToNotes(entry);
+          },
+        ),
+        SheetAction(
+          icon: Icons.key_off_rounded,
+          label: 'Redact secrets',
+          detail: 'Masks keys, tokens and passwords, on this device',
+          onTap: () {
+            Navigator.pop(ctx);
+            _redactClip(entry);
           },
         ),
         SheetAction(

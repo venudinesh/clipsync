@@ -110,6 +110,26 @@ namespace ClipSyncAI
             Hub.Say("Added to your notes");
         }
 
+        /// Masks API keys, tokens and passwords inside the clip, in the
+        /// original and the formatted text alike, so the secret stops being
+        /// saved or shown anywhere in the app. Needs no model: the masks are
+        /// plain regex, which is also why running it twice finds nothing left.
+        private void Redact(ClipEntry c)
+        {
+            string rawSrc = c.RawText ?? "";
+            string fmtSrc = c.ProcessedMarkdown ?? "";
+            Redaction raw = Secrets.Redact(rawSrc);
+            bool same = fmtSrc == rawSrc;
+            Redaction fmt = same ? raw : Secrets.Redact(fmtSrc);
+            int n = same ? raw.Count : raw.Count + fmt.Count;
+            if (n == 0) { Hub.Say("No secrets found in this clip"); return; }
+            c.RawText = raw.Text;
+            c.ProcessedMarkdown = fmt.Text;
+            Hub.Clips.Save();
+            Hub.RaiseClips();
+            Hub.Say("Redacted " + Say.Plural(n, "secret"));
+        }
+
         /// The clip's actions, in the phone's order and with the phone's words.
         /// Summarise appears only when a model is actually loaded, because an
         /// action that cannot work is worse than one that is not offered.
@@ -128,6 +148,8 @@ namespace ClipSyncAI
             }
             list.Add(Glyph.Notes, "Add to notes", "", false,
                 delegate { Hub.Sheet.Close(); ToNotes(c); });
+            list.Add(Glyph.Key, "Redact secrets", "Masks keys, tokens and passwords", false,
+                delegate { Hub.Sheet.Close(); Redact(c); });
             list.Add(Glyph.Tasks, "Select for join", "Pick more clips, then join them into one", false,
                 delegate { Hub.Sheet.Close(); StartJoin(c); });
             list.Add(Glyph.Pin, c.IsPinned ? "Unpin" : "Pin to top",

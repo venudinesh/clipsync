@@ -16,7 +16,7 @@ namespace ClipSyncAI
         Clips, Chat, Notes, Capture, Settings,
         Pin, Copy, Trash, Search, Send, Mic, Sparkle,
         Check, Close, Chevron, Plus, Sun, Moon, Refresh, Link, Menu, Stop, Tag, External,
-        More, Back, Edit, Sort, Tasks, Spell, Hash
+        More, Back, Edit, Sort, Tasks, Spell, Hash, Key
     }
 
     internal static partial class Icons
@@ -120,6 +120,13 @@ namespace ClipSyncAI
                     L(g, p, 12f, 14f, 12f, 21f);
                     RR(g, p, 7f, 3f, 10f, 11f, 4.5f);
                     Dot(g, b, 12f, 8.5f, 1.6f);
+                    break;
+
+                case Glyph.Key:
+                    g.DrawEllipse(p, 3.5f, 3.5f, 7f, 7f);
+                    L(g, p, 8.7f, 8.7f, 19.5f, 19.5f);
+                    L(g, p, 14.5f, 14.5f, 17.5f, 14.5f);
+                    L(g, p, 17f, 17f, 20f, 17f);
                     break;
 
                 case Glyph.Copy:
