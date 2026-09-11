@@ -1,0 +1,14 @@
+Package: clip-sync-ai
+Version: __VERSION__
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: ClipSyncAI <noreply@localhost>
+Depends: libgtk-3-0, libsecret-1-0, zenity
+Description: Clipboard note-taking and transcription with on-device AI
+ ClipSyncAI turns whatever you copy into editable notes, recognizes voice
+ with on-device Whisper, and lets you chat with a local or cloud model.
+ .
+ Works with a connected AI gateway (Ollama, OpenAI-compatible endpoints, or a
+ custom gateway). Voice transcription requires the on-device Whisper engine;
+ OCR is currently a mobile-only feature.

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12 and up own the splash screen: the platform animates the
+         launcher icon over a solid colour and no app drawn splash is shown at
+         all. So the mark comes from @mipmap/ic_launcher, and windowBackground
+         drops back to a flat canvas, because the layer list version would put
+         a second copy of the mark on screen the moment the system splash
+         dismissed.
+
+         No windowSplashScreenIconBackgroundColor: the adaptive icon already
+         carries its own gradient plate, and adding one would ring it. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@color/splash_canvas</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="android:windowBackground">@color/splash_canvas</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <item name="android:fitsSystemWindows">false</item>
+    </style>
+</resources>

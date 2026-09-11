@@ -1,0 +1,89 @@
+name: desktop builds
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    name: Linux (x64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GTK, libsecret and RPM toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake pkg-config ninja-build libgtk-3-dev \
+            libsecret-1-dev libjsoncpp-dev liblzma-dev rpm
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.1'
+          cache: true
+      - name: Build release
+        run: |
+          flutter pub get
+          flutter build linux --release
+      - name: Package .deb, .rpm and tarball
+        run: bash tool/package_linux.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clip-sync-ai-linux-x64
+          path: dist/
+          if-no-files-found: error
+
+  build-macos:
+    name: macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+          - os: macos-15-intel
+            arch: x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: false
+      - name: Enable desktop, classic CocoaPods (SPM off), resolve deps
+        run: |
+          flutter config --enable-macos-desktop
+          flutter config --no-enable-swift-package-manager || true
+          flutter config --list
+          flutter precache --macos || true
+          flutter precache --force --macos || true
+          flutter pub get
+          ROOT="$(flutter --version --machine | sed -n 's/.*"flutterRoot": "\([^"]*\)".*/\1/p')"
+          mkdir -p macos/Flutter
+          FW_DIR="$(ls -d "$ROOT/bin/cache/artifacts/engine/darwin-$(uname -m)-release" 2>/dev/null | head -1)"
+          [ -z "$FW_DIR" ] && FW_DIR="$(ls -d "$ROOT/bin/cache/artifacts/engine"/darwin-*-release | head -1)"
+          printf 'FLUTTER_ROOT=%s\nFLUTTER_APPLICATION_PATH=%s\nCOCOAPODS_PARALLEL_CODE_SIGN=true\nFLUTTER_BUILD_DIR=build\nFLUTTER_TARGET=lib/main.dart\nFLUTTER_FRAMEWORK_DIR=%s\n' "$ROOT" "$(pwd)" "$FW_DIR" > macos/Flutter/Generated.xcconfig
+      - name: Build release (unsigned)
+        env:
+          CODE_SIGNING_ALLOWED: 'NO'
+        run: flutter build macos --release
+      - name: Ad-hoc sign (arm64 must be signed to launch at all)
+        run: codesign --force --deep --sign - "build/macos/Build/Products/Release/clip_sync_ai.app"
+      - name: Package .dmg and .zip
+        run: |
+          mkdir -p dist/dmg
+          cp -R "build/macos/Build/Products/Release/clip_sync_ai.app" dist/dmg/
+          ln -s /Applications dist/dmg/Applications
+          hdiutil create -volname "ClipSyncAI" -srcfolder dist/dmg -ov -format UDZO \
+            "dist/clip_sync_ai-macos-${{ matrix.arch }}.dmg"
+          ditto -c -k --keepParent "build/macos/Build/Products/Release/clip_sync_ai.app" \
+            "dist/clip_sync_ai-macos-${{ matrix.arch }}.zip"
+          rm -rf dist/dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clip-sync-ai-macos-${{ matrix.arch }}
+          path: dist/
+          if-no-files-found: error

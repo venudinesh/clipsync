@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ClipSyncAI
+GenericName=Clipboard AI
+Comment=Clipboard note-taking and transcription with on-device AI
+Exec=/usr/lib/clip-sync-ai/clip_sync_ai
+Icon=clip-sync-ai
+Terminal=false
+Categories=Utility;Office;AudioVideo;
+Keywords=clipboard;AI;whisper;notes;transcription;
+StartupNotify=true

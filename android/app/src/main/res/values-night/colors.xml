@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Off black, not #000000: a shadow cast onto pure black is invisible. True
+     black stays reachable through the app's AMOLED toggle, which is Dart side
+     and so cannot reach the launch window. -->
+<resources>
+    <color name="app_canvas">#FF0B0B0D</color>
+    <color name="splash_canvas">#FF0B0B0D</color>
+</resources>

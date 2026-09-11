@@ -1,0 +1,88 @@
+name: clip_sync_ai
+description: >
+  ClipSyncAI - 100% offline, privacy-first clipboard processing with on-device LLM inference.
+  Liquid Glass AMOLED dark mode UI. Runs llama.cpp directly in-app — no server needed.
+publish_to: 'none'
+version: 1.1.1+2
+
+environment:
+  sdk: '>=3.10.7 <4.0.0'
+  flutter: '>=3.38.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # On-device LLM inference via llama.cpp (the same engine Ollama uses)
+  llamadart: ^0.8.21
+
+  # Local database
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # Secure storage for encryption keys
+  flutter_secure_storage: ^9.2.2
+
+  # Path utilities
+  path_provider: ^2.1.2
+
+  # Device info for hardware-aware model selection
+  device_info_plus: ^11.1.0
+
+  # Permission handling
+  permission_handler: ^11.3.0
+
+  # Markdown rendering
+  flutter_markdown: ^0.7.0+3
+
+  # On-device OCR
+  google_mlkit_text_recognition: ^0.13.0
+
+  # Image picking for OCR
+  image_picker: ^1.1.2
+
+  # File picking for chat attachments (docs, audio, etc.)
+  file_picker: ^8.1.2
+
+  # UUID generation
+  uuid: ^4.3.3
+
+  # Date formatting
+  intl: ^0.19.0
+
+  # URL launcher for links
+  url_launcher: ^6.2.5
+
+  # Shimmer effects
+  shimmer: ^3.0.0
+
+  # Local audio recording for voice notes
+  record: ^7.0.0
+
+  # On-device speech-to-text via Whisper.cpp
+  whisper_flutter_new: ^1.0.1
+
+  # File downloading for GGUF model acquisition
+  http: ^1.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.8
+
+# url_launcher_macos and record_macos ship broken SwiftPM manifests for macOS
+# (FlutterMacOS module can't resolve). Vendored copies strip the Package.swift
+# so the Flutter tool routes them through the CocoaPods path instead.
+dependency_overrides:
+  url_launcher_macos:
+    path: third_party/url_launcher_macos
+  record_macos:
+    path: third_party/record_macos
+
+flutter:
+  uses-material-design: true
+  config:
+    enable-swift-package-manager: false

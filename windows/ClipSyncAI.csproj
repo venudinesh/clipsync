@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app, for Visual Studio.
+
+     build.sh and build.cmd are what ship the executables: they call the compiler
+     inside Windows and need nothing installed. This file is here so the same
+     sources can be opened in an IDE and stepped through, and it is kept in step
+     with those scripts by hand rather than generated.
+
+     Two things in it are load bearing. The language version is pinned to 5,
+     because the shipping build uses the C# 4.0 compiler in C:\Windows and
+     anything newer than C# 5 would compile here and fail there. And the output
+     goes under build\ with the configuration in the folder name, so a debug run
+     cannot quietly overwrite a released ClipSyncAI-x64.exe. -->
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
+    <ProjectGuid>{3A1F9C42-7B58-4C6E-9D21-5E0A8B4F1D77}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>ClipSyncAI</RootNamespace>
+    <AssemblyName>ClipSyncAI</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <LangVersion>5</LangVersion>
+    <FileAlignment>512</FileAlignment>
+    <WarningLevel>4</WarningLevel>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+    <BaseIntermediateOutputPath>build\obj\app\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <DefineConstants>TRACE</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OutputPath>build\$(Configuration)-$(Platform)\</OutputPath>
+    <PlatformTarget>$(Platform)</PlatformTarget>
+  </PropertyGroup>
+
+  <!-- The same five the build scripts pass. System.Speech is deliberately absent:
+       dictation is optional, so it is loaded by name at runtime and the app runs
+       on a machine that has no speech support at all. -->
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Security" />
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="src\*.cs" />
+    <None Include="app.config" />
+    <None Include="app.manifest" />
+    <None Include="build.sh" />
+    <None Include="build.cmd" />
+  </ItemGroup>
+
+  <!-- The llama.cpp runtime, embedded under its plain file names so an IDE run
+       finds the same resources the shipping build embeds via build.cmd. -->
+  <ItemGroup>
+    <EmbeddedResource Include="native\ggml-base.dll"><LogicalName>ggml-base.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-alderlake.dll"><LogicalName>ggml-cpu-alderlake.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-cannonlake.dll"><LogicalName>ggml-cpu-cannonlake.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-cascadelake.dll"><LogicalName>ggml-cpu-cascadelake.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-cooperlake.dll"><LogicalName>ggml-cpu-cooperlake.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-haswell.dll"><LogicalName>ggml-cpu-haswell.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-icelake.dll"><LogicalName>ggml-cpu-icelake.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-ivybridge.dll"><LogicalName>ggml-cpu-ivybridge.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-piledriver.dll"><LogicalName>ggml-cpu-piledriver.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-sandybridge.dll"><LogicalName>ggml-cpu-sandybridge.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-sapphirerapids.dll"><LogicalName>ggml-cpu-sapphirerapids.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-skylakex.dll"><LogicalName>ggml-cpu-skylakex.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-sse42.dll"><LogicalName>ggml-cpu-sse42.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-x64.dll"><LogicalName>ggml-cpu-x64.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-cpu-zen4.dll"><LogicalName>ggml-cpu-zen4.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml-rpc.dll"><LogicalName>ggml-rpc.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\ggml.dll"><LogicalName>ggml.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\libomp.dll"><LogicalName>libomp.dll</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="native\llama.dll"><LogicalName>llama.dll</LogicalName></EmbeddedResource>
+  </ItemGroup>
+
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

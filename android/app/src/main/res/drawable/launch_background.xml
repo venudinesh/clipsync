@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launch window for API 24 to 30, where the app draws its own splash.
+     Android 12 and up ignore this in favour of the system splash screen, so
+     values-v31 replaces it with a bare colour and lets the platform place the
+     mark. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_canvas" />
+    <item
+        android:drawable="@drawable/splash_mark"
+        android:gravity="center"
+        android:width="112dp"
+        android:height="112dp" />
+</layer-list>

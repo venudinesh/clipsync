@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The test suite, for Visual Studio.
+
+     Not a test framework project: the suite is a console program that prints what
+     it checked and exits with the number of failures, so it runs the same way from
+     an IDE, from build.sh and from a build server. Set this as the startup project
+     and press run.
+
+     It compiles the app's own sources alongside the tests rather than referencing
+     the executable, because everything in the app is internal. A program nothing
+     links against has no reason to expose a public surface, and the tests are part
+     of the same build instead. -->
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{9C6E2D18-4F30-4A57-B8C1-2D6F7A0E5B93}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ClipSyncAI.Tests</RootNamespace>
+    <AssemblyName>ClipSyncAI.Tests</AssemblyName>
+    <StartupObject>ClipSyncAI.Tests.Runner</StartupObject>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <LangVersion>5</LangVersion>
+    <FileAlignment>512</FileAlignment>
+    <WarningLevel>4</WarningLevel>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+    <BaseIntermediateOutputPath>build\obj\tests\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <DefineConstants>TRACE</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OutputPath>build\tests-$(Configuration)\</OutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Security" />
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="src\*.cs" />
+    <Compile Include="tests\*.cs" />
+  </ItemGroup>
+
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

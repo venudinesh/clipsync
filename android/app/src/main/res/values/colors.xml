@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brand colours, mirroring lib/ui/design_tokens.dart. The launch window is
+     drawn by the platform before any Dart runs, so these have to exist on the
+     Android side as well; they are the one place the two copies can drift, and
+     the values here are the light theme's. -->
+<resources>
+    <color name="brand_rose">#FFDFA5B4</color>
+    <color name="brand_rose_deep">#FFC98FA8</color>
+
+    <!-- Warm off white, never pure white. -->
+    <color name="app_canvas">#FFF7F5F2</color>
+    <color name="splash_canvas">#FFF7F5F2</color>
+</resources>

@@ -1,0 +1,30 @@
+# Flutter / Dart build output
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+
+# Windows build output
+windows/build/
+windows/windows/
+
+# Android build caches / machine config
+android/.gradle/
+android/.kotlin/
+android/local.properties
+
+# IDE
+.idea/
+.vscode/
+
+# OS / misc
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.log
+
+# Models (large, user-specific)
+*.gguf
+
+dist/
