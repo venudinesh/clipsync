@@ -30,6 +30,8 @@ namespace ClipSyncAI
             _watch.Preset(s.CaptureEnabled);
             _auto.Preset(s.AutoProcess);
             _safe.Preset(s.SkipSensitive);
+            _redact.Preset(s.AutoRedact);
+            _life.Index = Near(Lives, s.RetentionDays);
             _keep.Index = Near(Keeps, s.MaxHistory);
             _floor.Index = Near(Floors, s.MinLength);
             _wait.Index = Near(Waits, s.DebounceMs);
@@ -191,6 +193,11 @@ namespace ClipSyncAI
             _voice.Label = Voices.Pretty(Hub.Settings.SpeechCulture);
             _hotShow.Label = Shortcut(Hub.Settings.HotkeyOverlay);
             _hotDo.Label = Shortcut(Hub.Settings.HotkeyProcess);
+            _hotHist.Label = Shortcut(Hub.Settings.HotkeyHistory);
+            bool locked = PinLock.Locked(Hub.Settings);
+            _pinSet.Label = locked ? "Change" : "Set PIN";
+            _pinDrop.Visible = locked;
+            _lockNow.Visible = locked;
             if (_whereRow != null) _whereRow.Detail = Where();
             Moots();
         }

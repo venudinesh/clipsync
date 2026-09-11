@@ -30,6 +30,9 @@ namespace ClipSyncAI
         public int DebounceMs = AppDefaults.ClipboardDebounceMs;
         public int MaxHistory = 500;
         public bool SkipSensitive = true;
+        public bool AutoRedact;
+        public int RetentionDays;
+        public string PinHash = "";
         public int MinLength = 2;
 
         // Engine
@@ -53,6 +56,7 @@ namespace ClipSyncAI
         public bool CloseToTray = true;
         public string HotkeyOverlay = "Ctrl+Shift+V";
         public string HotkeyProcess = "Ctrl+Shift+C";
+        public string HotkeyHistory = "Ctrl+Shift+H";
 
         // Capture tab
         public string TesseractPath = "";
@@ -78,6 +82,9 @@ namespace ClipSyncAI
                 .Set("debounceMs", (long)DebounceMs)
                 .Set("maxHistory", (long)MaxHistory)
                 .Set("skipSensitive", SkipSensitive)
+                .Set("autoRedact", AutoRedact)
+                .Set("retentionDays", (long)RetentionDays)
+                .Set("pinHash", PinHash ?? "")
                 .Set("minLength", (long)MinLength)
                 .Set("engine", EngineName(Engine))
                 .Set("autoDiscoverEngine", AutoDiscoverEngine)
@@ -93,6 +100,7 @@ namespace ClipSyncAI
                 .Set("closeToTray", CloseToTray)
                 .Set("hotkeyOverlay", HotkeyOverlay)
                 .Set("hotkeyProcess", HotkeyProcess)
+                .Set("hotkeyHistory", HotkeyHistory)
                 .Set("tesseractPath", TesseractPath)
                 .Set("speechCulture", SpeechCulture);
         }
@@ -112,6 +120,9 @@ namespace ClipSyncAI
             s.DebounceMs = Clamp(j["debounceMs"].AsInt(s.DebounceMs), 200, 15000);
             s.MaxHistory = Clamp(j["maxHistory"].AsInt(s.MaxHistory), 20, 20000);
             s.SkipSensitive = j["skipSensitive"].AsBool(s.SkipSensitive);
+            s.AutoRedact = j["autoRedact"].AsBool(false);
+            s.RetentionDays = Clamp(j["retentionDays"].AsInt(0), 0, 3650);
+            s.PinHash = j["pinHash"].AsString("");
             s.MinLength = Clamp(j["minLength"].AsInt(s.MinLength), 1, 200);
             s.Engine = ParseEngine(j["engine"].AsString("offline"));
             s.AutoDiscoverEngine = j["autoDiscoverEngine"].AsBool(s.AutoDiscoverEngine);
@@ -127,6 +138,7 @@ namespace ClipSyncAI
             s.CloseToTray = j["closeToTray"].AsBool(s.CloseToTray);
             s.HotkeyOverlay = NonEmpty(j["hotkeyOverlay"].AsString(""), s.HotkeyOverlay);
             s.HotkeyProcess = NonEmpty(j["hotkeyProcess"].AsString(""), s.HotkeyProcess);
+            s.HotkeyHistory = NonEmpty(j["hotkeyHistory"].AsString(""), s.HotkeyHistory);
             s.TesseractPath = j["tesseractPath"].AsString("");
             s.SpeechCulture = j["speechCulture"].AsString("");
             return s;

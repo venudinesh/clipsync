@@ -49,6 +49,8 @@ namespace ClipSyncAI
         private static readonly Regex Pem = new Regex(
             @"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----");
 
+        private static readonly Regex Card = new Regex(@"\b(?:\d[ \-]?){13,19}\b");
+
         private static readonly Regex Assigned = new Regex(
             @"([A-Za-z0-9_.\-]*?(?:api[_-]?key|secret|passwd|password|pwd|auth[_-]?token|access[_-]?token|client[_-]?secret)[A-Za-z0-9_.\-]*)\s*[:=]\s*([""']?)([^\s""'`,;]+)\2",
             RegexOptions.IgnoreCase);
@@ -87,6 +89,16 @@ namespace ClipSyncAI
             {
                 n++;
                 return "[redacted:private-key]";
+            });
+            // Card numbers: 13-19 digits that pass the Luhn checksum. Length
+            // plus checksum is what separates a card from an order id.
+            s = Card.Replace(s, delegate(Match m)
+            {
+                string digits = Regex.Replace(m.Value, @"[^0-9]", "");
+                if (digits.Length < 13 || digits.Length > 19 ||
+                    !Sensitive.Luhn(digits)) return m.Value;
+                n++;
+                return "[redacted:card-number]";
             });
             s = Assigned.Replace(s, delegate(Match m)
             {

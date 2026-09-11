@@ -26,6 +26,8 @@ namespace ClipSyncAI
             _hotShow.Click += OnHotShow;
             _hotDo.Look = ButtonLook.Outline;
             _hotDo.Click += OnHotDo;
+            _hotHist.Look = ButtonLook.Outline;
+            _hotHist.Click += OnHotHist;
 
             Group g = new Group("Window");
             g.Add(Row("Start with Windows", "Runs when you sign in, so the clipboard is being " +
@@ -38,6 +40,8 @@ namespace ClipSyncAI
                 Theme.Px(190)));
             g.Add(Row("Tidy the clipboard", "Runs the formatter on whatever is copied right now, " +
                 "without leaving the app you are in", _hotDo, Theme.Px(190)));
+            g.Add(Row("Clip history", "A popup with your recent clips, to paste back " +
+                "into whatever you are in", _hotHist, Theme.Px(190)));
             return g;
         }
 
@@ -132,6 +136,12 @@ namespace ClipSyncAI
                 new Action<string>(TookDo));
         }
 
+        private void OnHotHist(object sender, EventArgs e)
+        {
+            Record("Clip history", Hub.Settings.HotkeyHistory, Hub.Settings.HotkeyOverlay,
+                new Action<string>(TookHist));
+        }
+
         private void TookShow(string text)
         {
             Hub.Settings.HotkeyOverlay = text;
@@ -144,6 +154,15 @@ namespace ClipSyncAI
         private void TookDo(string text)
         {
             Hub.Settings.HotkeyProcess = text;
+            Hub.SaveSettings();
+            Fresh();
+            Hub.RaiseHotkeys();
+            Hub.Say(text.Length == 0 ? "That shortcut is off" : "Press " + text + " from anywhere");
+        }
+
+        private void TookHist(string text)
+        {
+            Hub.Settings.HotkeyHistory = text;
             Hub.SaveSettings();
             Fresh();
             Hub.RaiseHotkeys();

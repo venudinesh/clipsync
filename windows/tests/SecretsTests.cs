@@ -57,6 +57,14 @@ namespace ClipSyncAI.Tests
             T.Eq("a bearer token is masked", 1, bearer.Count);
             T.Contains("with its label", bearer.Text, "[redacted:bearer-token]");
 
+            Redaction card = Secrets.Redact("card 4111111111111111 expires soon");
+            T.Eq("a card number passing Luhn is masked", 1, card.Count);
+            T.Contains("with its label", card.Text, "[redacted:card-number]");
+
+            Redaction order = Secrets.Redact("order 4111111111111112 shipped");
+            T.Eq("a number failing Luhn is kept", 0, order.Count);
+            T.Contains("untouched", order.Text, "4111111111111112");
+
             Redaction assigned = Secrets.Redact(
                 "db password=hunter2\nenv API_KEY=\"abc123XYZ\"\nclientSecret: s3cr3t!");
             T.Eq("a password, an api key and a client secret", 3, assigned.Count);

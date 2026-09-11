@@ -40,15 +40,52 @@ namespace ClipSyncAI
             _wipe.Label = "Delete everything";
             _wipe.Click += OnWipe;
 
+            _pinSet.Look = ButtonLook.Soft;
+            _pinSet.Click += OnPinSet;
+            _pinDrop.Look = ButtonLook.Outline;
+            _pinDrop.Label = "Remove";
+            _pinDrop.Click += OnPinDrop;
+            _lockNow.Look = ButtonLook.Outline;
+            _lockNow.Label = "Lock now";
+            _lockNow.Click += OnLockNow;
+
             _whereRow = Row("Where it is kept", Paths.Root, _folder, Theme.Px(160));
 
             Group g = new Group("Your files");
             g.Add(_whereRow);
             g.Add(Row("Export everything", "One JSON file with every clip, note and conversation " +
                 "in it. Readable by anything, so keep it somewhere you trust", _export, Theme.Px(160)));
+            g.Add(Row("Lock with a PIN", "Your clips ask for it before they open, on launch " +
+                "and whenever you lock", _pinSet, Theme.Px(160)));
+            g.Add(Row("Lock now", "Back behind the PIN immediately", _lockNow, Theme.Px(160)));
+            g.Add(Row("Remove the PIN", "Your clips open freely again", _pinDrop, Theme.Px(160)));
             g.Add(Row("Delete everything", "Clears every clip, note and conversation on this PC. " +
                 "This cannot be undone", _wipe, Theme.Px(200)));
             return g;
+        }
+
+        private void OnPinSet(object sender, EventArgs e)
+        {
+            string hash = PinLock.Setup();
+            if (hash == null) return;
+            Hub.Settings.PinHash = hash;
+            Hub.SaveSettings();
+            Fresh();
+            Hub.Say("PIN set. Your clips lock on launch.");
+        }
+
+        private void OnPinDrop(object sender, EventArgs e)
+        {
+            Hub.Settings.PinHash = "";
+            Hub.SaveSettings();
+            Fresh();
+            Hub.Say("PIN removed");
+        }
+
+        private void OnLockNow(object sender, EventArgs e)
+        {
+            if (!PinLock.Locked(Hub.Settings)) return;
+            if (!PinLock.Unlock(Hub.Settings)) Application.Exit();
         }
 
         private void OnFolder(object sender, EventArgs e)

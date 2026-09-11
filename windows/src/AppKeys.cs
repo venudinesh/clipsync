@@ -67,10 +67,12 @@ namespace ClipSyncAI
     {
         private const int KeyShow = 1;
         private const int KeyTidy = 2;
+        private const int KeyHistory = 3;
 
         /// 0 nothing was asked for, 1 taken, 2 refused by Windows.
         private int _show;
         private int _tidy;
+        private int _hist;
         private bool _tidying;
 
         /// Takes the two global shortcuts. Refusal is normal: another app may
@@ -82,6 +84,7 @@ namespace ClipSyncAI
             if (!IsHandleCreated) return;
             _show = Take(KeyShow, _hub.Settings.HotkeyOverlay);
             _tidy = Take(KeyTidy, _hub.Settings.HotkeyProcess);
+            _hist = Take(KeyHistory, _hub.Settings.HotkeyHistory);
         }
 
         private int Take(int id, string text)
@@ -108,9 +111,10 @@ namespace ClipSyncAI
         private void Rebind()
         {
             Bind();
-            if (_show == 2 && _tidy == 2) _hub.Oops("Another app already owns both shortcuts");
+            if (_show == 2 && _tidy == 2 && _hist == 2) _hub.Oops("Another app already owns all three shortcuts");
             else if (_show == 2) _hub.Oops("Another app already owns " + _hub.Settings.HotkeyOverlay);
             else if (_tidy == 2) _hub.Oops("Another app already owns " + _hub.Settings.HotkeyProcess);
+            else if (_hist == 2) _hub.Oops("Another app already owns " + _hub.Settings.HotkeyHistory);
             else _hub.Say("Shortcuts updated");
         }
 
@@ -122,6 +126,7 @@ namespace ClipSyncAI
                 int id = m.WParam.ToInt32();
                 if (id == KeyShow) Front();
                 else if (id == KeyTidy) Tidy();
+                else if (id == KeyHistory) History();
                 return;
             }
             uint ask = m.Msg >= 0xC000 && m.Msg <= 0xFFFF ? Native.ShowMessage() : 0;
@@ -193,6 +198,28 @@ namespace ClipSyncAI
             t.IsBackground = true;
             t.Name = "hotkey-tidy";
             t.Start(text);
+        }
+
+        private HistoryPopup _history;
+
+        /// The third shortcut: the recent clips as a popup, to paste back into
+        /// whatever is in front. The key toggles: open, then gone.
+        private void History()
+        {
+            if (_history != null && !_history.IsDisposed)
+            {
+                _history.Close();
+                _history = null;
+                return;
+            }
+            if (_hub.Clips.Items.Count == 0)
+            {
+                Tell("Nothing kept yet", true);
+                return;
+            }
+            _history = new HistoryPopup(_hub);
+            _history.FormClosed += delegate { _history = null; };
+            _history.Show();
         }
 
         private void Tidying(object state)

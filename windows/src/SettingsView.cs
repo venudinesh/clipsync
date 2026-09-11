@@ -31,9 +31,11 @@ namespace ClipSyncAI
         private readonly Toggle _watch = new Toggle();
         private readonly Toggle _auto = new Toggle();
         private readonly Toggle _safe = new Toggle();
+        private readonly Toggle _redact = new Toggle();
         private readonly Segmented _keep = new Segmented();
         private readonly Segmented _floor = new Segmented();
         private readonly Segmented _wait = new Segmented();
+        private readonly Segmented _life = new Segmented();
         private Pref _autoRow;
 
         private readonly Segmented _kind = new Segmented();
@@ -65,6 +67,7 @@ namespace ClipSyncAI
         private readonly Toggle _tray = new Toggle();
         private readonly AppButton _hotShow = new AppButton();
         private readonly AppButton _hotDo = new AppButton();
+        private readonly AppButton _hotHist = new AppButton();
 
         private readonly Field _tess = new Field();
         private readonly AppButton _voice = new AppButton();
@@ -73,6 +76,9 @@ namespace ClipSyncAI
         private readonly AppButton _folder = new AppButton();
         private readonly AppButton _export = new AppButton();
         private readonly AppButton _wipe = new AppButton();
+        private readonly AppButton _pinSet = new AppButton();
+        private readonly AppButton _pinDrop = new AppButton();
+        private readonly AppButton _lockNow = new AppButton();
 
         private int[] _high = new int[0];
         private bool _loading;

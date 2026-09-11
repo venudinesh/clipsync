@@ -61,6 +61,19 @@ void main() {
       expect(r.text, contains('[redacted:bearer-token]'));
     });
 
+    test('a card number passing Luhn is masked', () {
+      final r = redactSecrets('card 4111111111111111 expires soon');
+      expect(r.count, 1);
+      expect(r.text, contains('[redacted:card-number]'));
+    });
+
+    test('a number failing Luhn is kept', () {
+      const order = 'order 4111111111111112 shipped';
+      final r = redactSecrets(order);
+      expect(r.count, 0);
+      expect(r.text, order);
+    });
+
     test('masks password and api_key assignments, keeping the label', () {
       final r = redactSecrets(
         'db password=hunter2\nenv API_KEY="abc123XYZ"\nclientSecret: s3cr3t!',

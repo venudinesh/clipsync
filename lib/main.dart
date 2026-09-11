@@ -333,6 +333,12 @@ class ClipEntry {
   final bool isPinned;
   final bool isChecklist;
 
+  /// A short human title ("Q3 planning notes") and a few lowercase tags,
+  /// written at capture time by the model when one is loaded, by a keyword
+  /// heuristic otherwise. Empty on clips kept before titles existed.
+  final String title;
+  final List<String> tags;
+
   ClipEntry({
     String? id,
     required this.rawText,
@@ -340,8 +346,11 @@ class ClipEntry {
     DateTime? timestamp,
     this.isPinned = false,
     this.isChecklist = false,
+    this.title = '',
+    List<String>? tags,
   })  : id = id ?? _uuid.v4(),
-        timestamp = timestamp ?? DateTime.now();
+        timestamp = timestamp ?? DateTime.now(),
+        tags = tags ?? const [];
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -350,6 +359,8 @@ class ClipEntry {
         'timestamp': timestamp.toIso8601String(),
         'isPinned': isPinned,
         'isChecklist': isChecklist,
+        if (title.isNotEmpty) 'title': title,
+        if (tags.isNotEmpty) 'tags': tags,
       };
 
   factory ClipEntry.fromMap(Map<String, dynamic> m) => ClipEntry(
@@ -359,6 +370,8 @@ class ClipEntry {
         timestamp: DateTime.parse(m['timestamp']),
         isPinned: m['isPinned'] ?? false,
         isChecklist: m['isChecklist'] ?? false,
+        title: (m['title'] as String?) ?? '',
+        tags: (m['tags'] as List?)?.whereType<String>().toList() ?? const [],
       );
 
   ClipEntry copyWith({
@@ -366,6 +379,8 @@ class ClipEntry {
     String? processedMarkdown,
     bool? isPinned,
     bool? isChecklist,
+    String? title,
+    List<String>? tags,
   }) =>
       ClipEntry(
         id: id,
@@ -374,6 +389,8 @@ class ClipEntry {
         timestamp: timestamp,
         isPinned: isPinned ?? this.isPinned,
         isChecklist: isChecklist ?? this.isChecklist,
+        title: title ?? this.title,
+        tags: tags ?? this.tags,
       );
 }
 
@@ -455,6 +472,20 @@ RedactionResult redactSecrets(String text) {
     },
   );
 
+  // Card numbers: 13-19 digits that pass the Luhn checksum. Length plus
+  // checksum is what separates a card from an order id.
+  out = out.replaceAllMapped(
+    RegExp(r'\b(?:\d[ \-]?){13,19}\b'),
+    (m) {
+      final digits = m.group(0)!.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.length < 13 || digits.length > 19 || !_luhnOk(digits)) {
+        return m.group(0)!;
+      }
+      count++;
+      return mark('card-number');
+    },
+  );
+
   // `password: hunter2`, `api_key="abc"`, `clientSecret: xyz`. The whole key
   // name is kept so the marker says what was caught; a value that is already
   // a marker is left alone, which is what makes a second run a no-op.
@@ -474,6 +505,25 @@ RedactionResult redactSecrets(String text) {
   );
 
   return (text: out, count: count);
+}
+
+/// The Luhn checksum, shared with card masking: true for digit strings whose
+/// digits sum right, which real card numbers do and order ids usually don't.
+bool _luhnOk(String digits) {
+  if (digits.isEmpty) return false;
+  var sum = 0;
+  var twice = false;
+  for (var i = digits.length - 1; i >= 0; i--) {
+    var d = digits.codeUnitAt(i) - 0x30;
+    if (d < 0 || d > 9) return false;
+    if (twice) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+    twice = !twice;
+  }
+  return sum % 10 == 0;
 }
 
 /// Joins [clips] into a single new clip, oldest first so the result reads in
@@ -505,6 +555,273 @@ ClipEntry joinClips(Iterable<ClipEntry> clips) {
     processedMarkdown: formatteds.join(kClipJoinSeparator),
     isChecklist: ordered.isNotEmpty && ordered.every((e) => e.isChecklist),
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SMART CAPTURE — similarity, ranking, titles, retention, auto-redact
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Words that carry no meaning for search or tags. The desktop build carries
+/// the same list, so both ends agree on what a tag can be.
+const List<String> kStopwords = [
+  'a', 'an', 'the', 'and', 'or', 'but', 'of', 'to', 'in', 'on', 'for',
+  'with', 'is', 'are', 'was', 'were', 'be', 'been', 'this', 'that',
+  'these', 'those', 'it', 'its', 'as', 'at', 'by', 'from', 'into',
+  'over', 'after', 'before', 'about', 'between', 'through', 'during',
+  'will', 'would', 'can', 'could', 'should', 'has', 'have', 'had',
+  'not', 'no', 'you', 'your', 'we', 'our', 'they', 'their', 'he',
+  'she', 'him', 'her', 'his', 'them', 'then', 'than', 'too', 'very',
+  'just', 'also', 'here', 'there', 'when', 'where', 'which', 'who',
+  'what', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most',
+  'other', 'some', 'such', 'only', 'own', 'same', 'so', 'now',
+];
+
+/// Lowercase alphanumeric tokens of [text], stopwords dropped. The shared
+/// vocabulary behind similarity, ranking and heuristic tags.
+List<String> clipWords(String text, {int minLength = 2}) {
+  return RegExp(r'[a-z0-9]+')
+      .allMatches(text.toLowerCase())
+      .map((m) => m.group(0)!)
+      .where((w) => w.length >= minLength && !kStopwords.contains(w))
+      .toList();
+}
+
+String _normalizeClip(String t) =>
+    t.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+
+/// Jaccard similarity of two texts' word sets: 1 for the same words, 0 for
+/// none shared. Normalized-equal texts short-circuit to 1.
+double clipSimilarity(String a, String b) {
+  final na = _normalizeClip(a);
+  final nb = _normalizeClip(b);
+  if (na == nb) return 1;
+  final sa = clipWords(na).toSet();
+  final sb = clipWords(nb).toSet();
+  if (sa.isEmpty || sb.isEmpty) return 0;
+  final overlap = sa.intersection(sb).length;
+  return overlap / sa.union(sb).length;
+}
+
+/// The existing clip most like [text], or null. Normalized equality always
+/// wins; otherwise the best Jaccard match above [threshold] does, ignoring
+/// stubs too short to judge.
+ClipEntry? findSimilarClip(
+  String text,
+  Iterable<ClipEntry> clips, {
+  double threshold = 0.85,
+}) {
+  final norm = _normalizeClip(text);
+  if (norm.isEmpty) return null;
+  ClipEntry? best;
+  var bestScore = 0.0;
+  for (final c in clips) {
+    final cnorm = _normalizeClip(c.rawText);
+    if (cnorm.isEmpty) continue;
+    if (cnorm == norm) return c;
+    if (norm.length < 20 || cnorm.length < 20) continue;
+    final s = clipSimilarity(norm, cnorm);
+    if (s >= threshold && s > bestScore) {
+      bestScore = s;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/// Rarity of each query term across the corpus: a word one clip in fifty uses
+/// outranks one every other clip does.
+Map<String, double> _clipIdf(List<ClipEntry> clips, List<String> terms) {
+  final idf = <String, double>{};
+  for (final t in terms.toSet()) {
+    var df = 0;
+    for (final c in clips) {
+      final hay = '${c.title} ${c.tags.join(' ')} '
+          '${c.processedMarkdown} ${c.rawText}'.toLowerCase();
+      if (hay.contains(t)) df++;
+    }
+    idf[t] = 1 + (clips.length + 1) / (1 + df);
+  }
+  return idf;
+}
+
+double _rankClip(ClipEntry c, List<String> terms, Map<String, double> idf) {
+  var score = 0.0;
+  final title = c.title.toLowerCase();
+  final tags = c.tags.join(' ').toLowerCase();
+  final formatted = c.processedMarkdown.toLowerCase();
+  final raw = c.rawText.toLowerCase();
+  for (final t in terms) {
+    final w = idf[t] ?? 1;
+    if (title.contains(t)) score += 4 * w;
+    if (tags.contains(t)) score += 3 * w;
+    if (formatted.contains(t)) score += 2 * w;
+    if (raw.contains(t)) score += 1 * w;
+  }
+  return score;
+}
+
+/// The clips matching [query], best first: title hits beat tag hits beat body
+/// hits, rare words beat common ones, and recency breaks ties. Empty query
+/// keeps the feed's own order.
+List<ClipEntry> rankClips(String query, List<ClipEntry> clips) {
+  final terms = clipWords(query).toSet().toList();
+  if (terms.isEmpty) return clips.toList();
+  final idf = _clipIdf(clips, terms);
+  final scored = <ClipEntry, double>{};
+  for (final c in clips) {
+    final s = _rankClip(c, terms, idf);
+    if (s > 0) scored[c] = s;
+  }
+  final out = scored.keys.toList()
+    ..sort((a, b) {
+      final cmp = scored[b]!.compareTo(scored[a]!);
+      return cmp != 0 ? cmp : b.timestamp.compareTo(a.timestamp);
+    });
+  return out;
+}
+
+/// A title and tags for [text]: the model writes them when one is loaded,
+/// otherwise the first line and the most frequent meaningful words do. Never
+/// throws; the worst case is a plain first-line title with no tags.
+Future<({String title, List<String> tags})> titleAndTags(
+  String text,
+  OllamaClipProcessor processor,
+) async {
+  if (processor.modelLoaded) {
+    try {
+      final answer = await processor.instruct(
+        'Give this note a title of at most 6 words and up to 3 lowercase '
+        'single-word tags, comma separated. Reply with exactly two lines:\n'
+        'TITLE: <title>\nTAGS: <tag>, <tag>\n\n$text',
+        maxTokens: 120,
+      );
+      if (answer != null) {
+        final parsed = parseTitleTags(answer);
+        if (parsed.title.isNotEmpty) return parsed;
+      }
+    } catch (_) {
+      // Fall through to the heuristic.
+    }
+  }
+  return _heuristicTitleTags(text);
+}
+
+/// Reads a `TITLE:` / `TAGS:` model answer into a title and tags. Public so
+/// the contract is pinned by tests rather than by the model behind it.
+({String title, List<String> tags}) parseTitleTags(String answer) {
+  var title = '';
+  var tags = <String>[];
+  for (final line in answer.split('\n')) {
+    final t = line.trim();
+    if (t.toUpperCase().startsWith('TITLE:')) {
+      title = t.substring(6).trim();
+    } else if (t.toUpperCase().startsWith('TAGS:')) {
+      tags = t
+          .substring(5)
+          .split(',')
+          .map((s) => s.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), ''))
+          .where((s) => s.isNotEmpty)
+          .take(3)
+          .toList();
+    }
+  }
+  if (title.length > 60) title = '${title.substring(0, 57).trim()}…';
+  return (title: title, tags: tags);
+}
+
+({String title, List<String> tags}) _heuristicTitleTags(String text) {
+  final first = text
+      .split('\n')
+      .map((l) => l.trim().replaceAll(RegExp(r'^#+\s*'), ''))
+      .firstWhere((l) => l.isNotEmpty, orElse: () => '');
+  final title =
+      first.length > 48 ? '${first.substring(0, 45).trim()}…' : first;
+  final freq = <String, int>{};
+  final order = <String>[];
+  for (final w in clipWords(text, minLength: 4)) {
+    freq[w] = (freq[w] ?? 0) + 1;
+    if (!order.contains(w)) order.add(w);
+  }
+  final ranked = order.toList()
+    ..sort((a, b) {
+      final cmp = freq[b]!.compareTo(freq[a]!);
+      return cmp != 0 ? cmp : order.indexOf(a).compareTo(order.indexOf(b));
+    });
+  return (title: title, tags: ranked.take(3).toList());
+}
+
+/// Deletes clips older than the retention setting and reports how many went.
+/// Zero or missing `clipRetentionDays` keeps everything, forever.
+Future<int> purgeExpiredClips() async {
+  if (!Hive.isBoxOpen(AppDefaults.hiveSettingsBox) ||
+      !Hive.isBoxOpen(AppDefaults.hiveClipBox)) {
+    return 0;
+  }
+  final days =
+      Hive.box(AppDefaults.hiveSettingsBox).get('clipRetentionDays') as int? ??
+          0;
+  if (days <= 0) return 0;
+  final cutoff = DateTime.now().subtract(Duration(days: days));
+  final box = Hive.box(AppDefaults.hiveClipBox);
+  final dead = <dynamic>[];
+  for (final key in box.keys) {
+    if (key == 'lastRaw') continue;
+    final val = box.get(key);
+    if (val is! Map) continue;
+    try {
+      final entry =
+          ClipEntry.fromMap(Map<String, dynamic>.from(val as Map));
+      // Pinned clips are never the ones dropped: pinning is the user saying
+      // keep this, and a lifetime setting must not overrule it.
+      if (!entry.isPinned && entry.timestamp.isBefore(cutoff)) {
+        dead.add(key);
+      }
+    } catch (_) {
+      // An unreadable entry is not ours to burn.
+    }
+  }
+  for (final key in dead) {
+    await box.delete(key);
+  }
+  return dead.length;
+}
+
+/// Runs the secret masks over [text] when the auto-redact setting is on.
+/// Safe to call anywhere, including tests without Hive: no box, no-op.
+String applyAutoRedact(String text) {
+  if (!Hive.isBoxOpen(AppDefaults.hiveSettingsBox)) return text;
+  final on =
+      Hive.box(AppDefaults.hiveSettingsBox).get('autoRedact') == true;
+  return on ? redactSecrets(text).text : text;
+}
+
+/// Builds a clip the way every capture path should: secrets masked first so
+/// they never reach the box, then formatted, then titled and tagged.
+Future<ClipEntry> buildClipEntry(
+  String rawText,
+  OllamaClipProcessor processor,
+) async {
+  final clean = applyAutoRedact(rawText);
+  final processed = await processor.process(clean);
+  final meta = await titleAndTags(clean, processor);
+  return ClipEntry(
+    rawText: clean,
+    processedMarkdown: processed,
+    title: meta.title,
+    tags: meta.tags,
+  );
+}
+
+/// A capture pushed at the app from the outside (share sheet, quick tile),
+/// for the dashboard to swallow on its next frame.
+final ValueNotifier<bool> captureRequested = ValueNotifier<bool>(false);
+
+/// Whether an app PIN is set. The PIN itself lives in the encrypted settings
+/// box, so it rests under the same AES-256 key as the clips it guards.
+bool appPinSet() {
+  if (!Hive.isBoxOpen(AppDefaults.hiveSettingsBox)) return false;
+  final pin = Hive.box(AppDefaults.hiveSettingsBox).get('appPin');
+  return pin is String && pin.isNotEmpty;
 }
 
 class Note {
@@ -1314,7 +1631,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   // Native service MethodChannel
   static const _serviceChannel = MethodChannel('com.sync.clipsync/service');
   static const _clipChannel = MethodChannel('com.sync.clipsync/clipboard');
+
+  /// Intents handed over by native Android: a shared text, or a quick-tile tap.
+  /// Missing everywhere but Android; every call is guarded, never assumed.
+  static const _shareChannel = MethodChannel('com.sync.clipsync/share');
   bool _nativeServiceRunning = false;
+
+  /// The privacy lock. On while a PIN is set and the session is not yet
+  /// unlocked: cold start, and every return from the background.
+  bool _locked = false;
+  bool _wasPaused = false;
 
   @override
   void initState() {
@@ -1325,11 +1651,73 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _loadThemeSettings();
     _loadAiConnection();
     _initNativeService();
+    _locked = appPinSet();
     // Loading a multi gigabyte GGUF is the heaviest thing the app ever does,
     // and nothing on the first screen depends on it, so it waits until that
     // screen is on the glass. Kicking it off from initState put llama.cpp's
     // model load in a race with the launch frame, and the launch frame lost.
     WidgetsBinding.instance.addPostFrameCallback((_) => _initLlmEngine());
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _purgeExpiredClipsStart());
+  }
+
+  /// Burns clips older than the retention setting, once per launch, and says
+  /// so only when something actually went.
+  Future<void> _purgeExpiredClipsStart() async {
+    final n = await purgeExpiredClips();
+    if (n > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cleared ${plural(n, 'expired clip')}'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _wasPaused = true;
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      if (_wasPaused && appPinSet()) {
+        setState(() => _locked = true);
+      }
+      _wasPaused = false;
+      _pollExternalCapture();
+    }
+  }
+
+  /// Picks up what native Android parked while the app was away: a shared text
+  /// to file, or a quick-tile tap asking for a capture. No channel, no work.
+  Future<void> _pollExternalCapture() async {
+    try {
+      final shared = await _shareChannel.invokeMethod<String>('getSharedText');
+      if (shared != null && shared.trim().isNotEmpty) {
+        await _shareChannel.invokeMethod('clearSharedText');
+        final entry = await buildClipEntry(shared.trim(), _processor);
+        await Hive.box(AppDefaults.hiveClipBox).put(entry.id, entry.toMap());
+        if (!mounted) return;
+        _goToTab(0);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Saved from share'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      final tile = await _shareChannel.invokeMethod<String>('getTileAction');
+      if (tile == 'capture') {
+        await _shareChannel.invokeMethod('clearTileAction');
+        if (!mounted) return;
+        _goToTab(0);
+        captureRequested.value = true;
+      }
+    } on MissingPluginException catch (_) {
+      // Desktop builds and older installs have no share channel.
+    } catch (_) {}
   }
 
   Future<void> _loadAiConnection() async {
@@ -1459,8 +1847,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         return;
       }
 
-      final processed = await _processor.process(text);
-      final entry = ClipEntry(rawText: text, processedMarkdown: processed);
+      // The background path files silently: no duplicate sheet from a service
+      // callback, just the same redaction, formatting and titling as a tap.
+      final entry = await buildClipEntry(text, _processor);
       box.put(entry.id, entry.toMap());
       debugPrint('Native clipboard intercepted and saved: ${text.length} chars');
     } catch (e, st) {
@@ -1599,6 +1988,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     isServiceRunning: _nativeServiceRunning,
                     onStartService: startNativeService,
                     onStopService: stopNativeService,
+                    onLockNow: () {
+                      if (appPinSet()) setState(() => _locked = true);
+                    },
                     onNavConfigChanged: (NavBarConfig newCfg) {
                       setState(() => _navConfig = newCfg);
                       _saveNavConfig();
@@ -1674,10 +2066,101 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 ),
               ),
             ),
+            // The privacy lock sits above everything, tabs included: while it
+            // is up there is no feed to read and no bar to leave by.
+            if (_locked)
+              Positioned.fill(
+                child: AppLockScreen(
+                  onUnlock: () => setState(() => _locked = false),
+                ),
+              ),
           ],
         ),
         ),
       ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The privacy lock: a PIN pad over the whole app. The PIN rests in the
+/// encrypted settings box, so guessing at this screen is the only way in that
+/// does not go through the device keystore first.
+class AppLockScreen extends StatefulWidget {
+  const AppLockScreen({required this.onUnlock, super.key});
+  final VoidCallback onUnlock;
+
+  @override
+  State<AppLockScreen> createState() => _AppLockScreenState();
+}
+
+class _AppLockScreenState extends State<AppLockScreen> {
+  final _pin = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    super.dispose();
+  }
+
+  void _tryUnlock() {
+    final saved = Hive.box(AppDefaults.hiveSettingsBox).get('appPin');
+    if (saved is String && saved.isNotEmpty && _pin.text == saved) {
+      HapticFeedback.lightImpact();
+      widget.onUnlock();
+    } else {
+      setState(() => _error = 'Wrong PIN, try again');
+      _pin.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(Space.xl),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Center(child: AppMark(size: 56)),
+              const SizedBox(height: Space.lg),
+              Text(
+                'ClipSync AI',
+                textAlign: TextAlign.center,
+                style: AppType.title(context),
+              ),
+              const SizedBox(height: Space.xs),
+              Text(
+                'Enter your PIN to open your clips',
+                textAlign: TextAlign.center,
+                style: AppType.meta(context),
+              ),
+              const SizedBox(height: Space.xl),
+              TextField(
+                controller: _pin,
+                obscureText: true,
+                autofocus: true,
+                textAlign: TextAlign.center,
+                keyboardType: TextInputType.number,
+                onSubmitted: (_) => _tryUnlock(),
+                decoration: InputDecoration(
+                  hintText: 'PIN',
+                  errorText: _error,
+                ),
+              ),
+              const SizedBox(height: Space.md),
+              PrimaryAction(
+                label: 'Unlock',
+                icon: Icons.lock_open_rounded,
+                onPressed: _tryUnlock,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1715,6 +2198,7 @@ class _DashboardViewState extends State<DashboardView>
   bool get wantKeepAlive => true;
   late Box _clipBox;
   final _manualController = TextEditingController();
+  final _search = TextEditingController();
   bool _isProcessing = false;
 
   /// Join mode: rows toggle membership in [_selectedIds] instead of opening,
@@ -1726,6 +2210,25 @@ class _DashboardViewState extends State<DashboardView>
   void initState() {
     super.initState();
     _clipBox = Hive.box(AppDefaults.hiveClipBox);
+    captureRequested.addListener(_onCaptureRequested);
+  }
+
+  @override
+  void dispose() {
+    captureRequested.removeListener(_onCaptureRequested);
+    _manualController.dispose();
+    _search.dispose();
+    super.dispose();
+  }
+
+  /// A capture ordered from outside the tab (quick tile, share sheet): the
+  /// same pull-to-capture the feed answers, so there is one gesture and one
+  /// code path for "take what is on the clipboard now".
+  Future<void> _onCaptureRequested() async {
+    if (!captureRequested.value) return;
+    captureRequested.value = false;
+    if (!mounted) return;
+    await _captureFromClipboard();
   }
 
   void _toggleMonitor(bool value) {
@@ -1764,10 +2267,9 @@ class _DashboardViewState extends State<DashboardView>
     FocusScope.of(context).unfocus();
     setState(() => _isProcessing = true);
     try {
-      final processed = await widget.processor.process(text);
-      final entry = ClipEntry(rawText: text, processedMarkdown: processed);
-      _clipBox.put(entry.id, entry.toMap());
-      _manualController.clear();
+      final entry = await buildClipEntry(text, widget.processor);
+      final saved = await _saveWithDuplicateCheck(entry);
+      if (saved) _manualController.clear();
     } catch (e) {
       debugPrint('Process error: $e');
       // Say so. A silent failure here looks like a dead send button, and the
@@ -1788,10 +2290,9 @@ class _DashboardViewState extends State<DashboardView>
     if (!mounted) return;
     setState(() => _isProcessing = true);
     try {
-      final processed = await widget.processor.process(text);
-      final entry = ClipEntry(rawText: text, processedMarkdown: processed);
-      _clipBox.put(entry.id, entry.toMap());
-      _toast('Clip pasted and formatted');
+      final entry = await buildClipEntry(text, widget.processor);
+      final saved = await _saveWithDuplicateCheck(entry);
+      if (mounted) _toast(saved ? 'Clip pasted and formatted' : 'Discarded');
     } catch (e) {
       debugPrint('Paste error: $e');
       _toast('Could not read the clipboard: '
@@ -1824,17 +2325,89 @@ class _DashboardViewState extends State<DashboardView>
     }
     setState(() => _isProcessing = true);
     try {
-      final processed = await widget.processor.process(text);
-      final entry = ClipEntry(rawText: text, processedMarkdown: processed);
-      _clipBox.put(entry.id, entry.toMap());
+      final entry = await buildClipEntry(text, widget.processor);
+      final saved = await _saveWithDuplicateCheck(entry);
       if (!mounted) return;
-      _toast('Clip captured');
+      if (saved) _toast('Clip captured');
     } catch (e) {
       debugPrint('Pull to capture failed: $e');
       if (mounted) _toast('Could not read the clipboard');
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
+  }
+
+  /// Files [entry], asking first when it closely resembles a kept clip.
+  /// Returns true when something was filed, false on an explicit discard.
+  Future<bool> _saveWithDuplicateCheck(ClipEntry entry) async {
+    final existing = findSimilarClip(entry.rawText, _entries);
+    if (existing == null) {
+      await _clipBox.put(entry.id, entry.toMap());
+      return true;
+    }
+    final decision = await _resolveDuplicate(existing);
+    if (decision == 'discard') return false;
+    if (decision == 'merge') {
+      await _mergeInto(existing, entry);
+      return true;
+    }
+    await _clipBox.put(entry.id, entry.toMap());
+    return true;
+  }
+
+  /// "This looks like one you kept" — keep both, merge into the earlier one
+  /// with the join machinery, or drop the newcomer. Dismissing keeps both:
+  /// the safe answer to an ambiguous question is the one that loses nothing.
+  Future<String> _resolveDuplicate(ClipEntry existing) async {
+    final preview = existing.title.isNotEmpty
+        ? existing.title
+        : existing.rawText.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final short =
+        preview.length > 80 ? '${preview.substring(0, 77).trim()}…' : preview;
+    final decision = await showDialog<String>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Very similar clip kept'),
+        content: Text(
+          'This looks like "$short" from ${relativeTime(existing.timestamp)}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, 'discard'),
+            child: const Text('Discard'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, 'merge'),
+            child: const Text('Merge'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, 'keep'),
+            child: const Text('Keep both'),
+          ),
+        ],
+      ),
+    );
+    return decision ?? 'keep';
+  }
+
+  /// Folds [candidate] into [existing] with the join machinery, keeping the
+  /// earlier clip's identity and title and surfacing it as new.
+  Future<void> _mergeInto(ClipEntry existing, ClipEntry candidate) async {
+    final joined = joinClips([existing, candidate]);
+    final updated = ClipEntry(
+      id: existing.id,
+      rawText: joined.rawText,
+      processedMarkdown: joined.processedMarkdown,
+      timestamp: DateTime.now(),
+      isPinned: existing.isPinned,
+      isChecklist: joined.isChecklist,
+      title: existing.title.isNotEmpty ? existing.title : candidate.title,
+      tags: {...existing.tags, ...candidate.tags}.toList(),
+    );
+    await _clipBox.put(updated.id, updated.toMap());
+    if (!mounted) return;
+    setState(() {});
+    _toast('Merged into the earlier clip');
   }
 
   Future<void> _syncAllClips() async {
@@ -2083,6 +2656,11 @@ class _DashboardViewState extends State<DashboardView>
     final entries = _entries;
     final pinned = entries.where((e) => e.isPinned).length;
     final today = entries.where(_isToday).length;
+    // A query ranks by relevance instead of merely filtering, because a
+    // 500-clip feed is searched, not scrolled.
+    final visible = _search.text.trim().isEmpty
+        ? entries
+        : rankClips(_search.text, entries);
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is ScrollUpdateNotification && widget.scrollNotifier != null) {
@@ -2212,24 +2790,36 @@ class _DashboardViewState extends State<DashboardView>
           const SizedBox(height: Space.md),
           Entrance(index: 5, child: _joinBar()),
         ],
+        if (entries.isNotEmpty) ...[
+          const SizedBox(height: Space.md),
+          Entrance(index: 6, child: _clipSearchBox()),
+        ],
         // Work in flight takes the shape of the entry it will become, rather
         // than a spinner that tells you nothing about what is arriving.
         if (_isProcessing) _pendingEntry(),
-        if (entries.isEmpty)
-          EmptyState(
-            icon: Icons.content_paste_off_rounded,
-            title: 'Nothing captured yet',
-            message:
-                'Copy text anywhere on the phone and it lands here, tidied up.',
-            action: PrimaryAction(
-              label: 'Read the clipboard now',
-              icon: Icons.download_rounded,
-              expand: false,
-              onPressed: _captureFromClipboard,
-            ),
-          )
+        if (visible.isEmpty)
+          visible.length != entries.length
+              ? StateBlock(
+                  compact: true,
+                  icon: Icons.search_off_rounded,
+                  title: 'No match',
+                  message:
+                      'Nothing kept says that. Try a word from the reply.',
+                )
+              : EmptyState(
+                  icon: Icons.content_paste_off_rounded,
+                  title: 'Nothing captured yet',
+                  message:
+                      'Copy text anywhere on the phone and it lands here, tidied up.',
+                  action: PrimaryAction(
+                    label: 'Read the clipboard now',
+                    icon: Icons.download_rounded,
+                    expand: false,
+                    onPressed: _captureFromClipboard,
+                  ),
+                )
         else
-          ...entries.map(_buildClipRow),
+          ...visible.map(_buildClipRow),
       ],
     ),
       ),
@@ -2314,6 +2904,27 @@ class _DashboardViewState extends State<DashboardView>
           ),
         ],
       ),
+    );
+  }
+
+  /// The feed's filter, in the same voice as the history sheet's: title hits
+  /// above tag hits above body hits, rare words above common ones.
+  Widget _clipSearchBox() {
+    return InlineField(
+      controller: _search,
+      hint: 'Search clips',
+      onChanged: (_) => setState(() {}),
+      trailing: _search.text.isEmpty
+          ? null
+          : IconAction(
+              icon: Icons.close_rounded,
+              tooltip: 'Clear search',
+              size: 16,
+              onPressed: () {
+                _search.clear();
+                setState(() {});
+              },
+            ),
     );
   }
 
@@ -4220,10 +4831,12 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
     });
   }
 
-  void _sendResultToClips(String field) {
+  Future<void> _sendResultToClips(String field) async {
     final text = _resultText(field);
     if (text.trim().isEmpty) return;
-    final entry = ClipEntry(rawText: text, processedMarkdown: text);
+    // A dictated note is a deliberate act, so it files without the duplicate
+    // sheet — but through the same redaction, formatting and titling.
+    final entry = await buildClipEntry(text, widget.processor);
     Hive.box(AppDefaults.hiveClipBox).put(entry.id, entry.toMap());
     _toast('Added to Clips');
   }
@@ -4802,6 +5415,10 @@ class SettingsView extends StatefulWidget {
   final bool isServiceRunning;
   final VoidCallback? onStartService;
   final VoidCallback? onStopService;
+
+  /// Locks the app immediately. Offered on the Data tab only while a PIN is
+  /// set; the shell owns the lock, settings only asks for it.
+  final VoidCallback? onLockNow;
   const SettingsView({
     super.key,
     required this.processor,
@@ -4812,6 +5429,7 @@ class SettingsView extends StatefulWidget {
     this.isServiceRunning = false,
     this.onStartService,
     this.onStopService,
+    this.onLockNow,
   }) : navConfig = navConfig ?? const NavBarConfig();
 
   @override
@@ -6580,6 +7198,7 @@ class _SettingsViewState extends State<SettingsView>
       // The one thing on this tab you can change goes first. Everything under it
       // is a reading, and readings do not belong above controls.
       _captureSwitch(),
+      _autoRedactSwitch(),
       _storageReadout(),
       const SectionHeader('How it is kept'),
       const LedgerFact('Encryption', 'AES-256, key in the Android Keystore'),
@@ -6619,6 +7238,21 @@ class _SettingsViewState extends State<SettingsView>
     );
   }
 
+  /// Masks keys, tokens and passwords before a clip is ever saved, so a
+  /// secret copied in a hurry never reaches the box in the first place.
+  Widget _autoRedactSwitch() {
+    return _switchRow(
+      title: 'Redact secrets on capture',
+      subtitle: 'API keys, tokens and passwords are masked as clips land.',
+      value: _settings.get('autoRedact') == true,
+      onChanged: (v) {
+        HapticFeedback.selectionClick();
+        _settings.put('autoRedact', v);
+        setState(() {});
+      },
+    );
+  }
+
   /// What the phone is actually holding, as three figures instead of a five row
   /// spec sheet. The total is the number you came for; the split is the detail.
   Widget _storageReadout() {
@@ -6645,6 +7279,221 @@ class _SettingsViewState extends State<SettingsView>
   // ════════════════════════════════════════════════════════════════════════════
   // TAB 4: DATA
   // ════════════════════════════════════════════════════════════════════════════
+
+  /// The privacy rows: a PIN over the whole app, a lifetime for clips, and
+  /// the way back out. The PIN rests in the encrypted settings box, under the
+  /// same key as the clips it guards.
+  static const _retentionLabels = {
+    0: 'Forever',
+    1: '24 hours',
+    7: '7 days',
+    30: '30 days',
+  };
+
+  String get _retentionLabel {
+    final days = _settings.get('clipRetentionDays') as int? ?? 0;
+    return _retentionLabels[days] ?? 'Forever';
+  }
+
+  bool get _pinSet {
+    final pin = _settings.get('appPin');
+    return pin is String && pin.isNotEmpty;
+  }
+
+  List<Widget> _privacyRows() {
+    return [
+      _privacyRow(
+        icon: Icons.lock_outline_rounded,
+        label: 'Clip lifetime',
+        detail: 'Clips older than this are cleared on launch · $_retentionLabel',
+        onTap: _pickRetention,
+      ),
+      _privacyRow(
+        icon: _pinSet ? Icons.lock_rounded : Icons.lock_open_rounded,
+        label: _pinSet ? 'Change PIN' : 'Lock with a PIN',
+        detail: _pinSet
+            ? 'The app asks for it on launch and on return'
+            : 'Your clips ask for it before they open',
+        onTap: _setPinFlow,
+      ),
+      if (_pinSet) ...[
+        _privacyRow(
+          icon: Icons.phonelink_lock_rounded,
+          label: 'Lock now',
+          detail: 'Back behind the PIN immediately',
+          onTap: () => widget.onLockNow?.call(),
+        ),
+        _privacyRow(
+          icon: Icons.no_encryption_outlined,
+          label: 'Remove PIN',
+          detail: 'Your clips open freely again',
+          onTap: _removePinFlow,
+          danger: true,
+        ),
+      ],
+    ];
+  }
+
+  Widget _privacyRow({
+    required IconData icon,
+    required String label,
+    required String detail,
+    required VoidCallback onTap,
+    bool danger = false,
+  }) {
+    final tone = danger
+        ? legibleAccent(Semantic.danger, Theme.of(context).colorScheme.surface)
+        : ink(context, 0.88);
+    return LedgerRow(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(vertical: Space.md - 1),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: tone.withValues(alpha: 0.9)),
+          const SizedBox(width: Space.md - 1),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AppType.body(context).copyWith(
+                    color: tone,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(detail, style: AppType.meta(context)),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, size: 18, color: ink(context, 0.30)),
+        ],
+      ),
+    );
+  }
+
+  void _settingsToast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
+  Future<void> _pickRetention() async {
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Keep clips for'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final days in _retentionLabels.keys)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(_retentionLabels[days]!),
+                trailing: (_settings.get('clipRetentionDays') as int? ?? 0) ==
+                        days
+                    ? Icon(Icons.check_rounded,
+                        color: Theme.of(dctx).colorScheme.primary)
+                    : null,
+                onTap: () => Navigator.pop(dctx, days),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    await _settings.put('clipRetentionDays', picked);
+    final burned = await purgeExpiredClips();
+    if (mounted) setState(() {});
+    _settingsToast(burned == 0
+        ? 'Clips now keep for ${_retentionLabels[picked]}'
+        : 'Cleared ${plural(burned, 'expired clip')}');
+  }
+
+  Future<String?> _askPin(String title, String hint) {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: ctrl,
+          obscureText: true,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(hintText: hint),
+          onSubmitted: (v) => Navigator.pop(dctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, ctrl.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ).whenComplete(ctrl.dispose);
+  }
+
+  Future<void> _setPinFlow() async {
+    final first = await _askPin('Set a PIN', 'Minimum 4 digits');
+    if (first == null) return;
+    if (first.length < 4) {
+      _settingsToast('A PIN needs at least 4 digits');
+      return;
+    }
+    final second = await _askPin('Confirm the PIN', 'Once more');
+    if (second == null) return;
+    if (second != first) {
+      _settingsToast('Those PINs did not match');
+      return;
+    }
+    await _settings.put('appPin', first);
+    if (mounted) setState(() {});
+    _settingsToast('PIN set. Your clips lock on launch and on return.');
+  }
+
+  Future<void> _removePinFlow() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Remove the PIN?'),
+        content: const Text('Your clips will open without asking again.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _settings.put('appPin', '');
+    if (mounted) setState(() {});
+    _settingsToast('PIN removed');
+  }
 
   /// One of the three wipe rows. Destructive work is stated in words and only
   /// the verb carries the danger tone, so the group does not read as an alarm.
@@ -6689,6 +7538,8 @@ class _SettingsViewState extends State<SettingsView>
     return [
       const SizedBox(height: Space.lg),
       _exportPanel(),
+      const SectionHeader('Privacy lock'),
+      ..._privacyRows(),
       const SectionHeader('Remove things'),
       _buildWipeTile(
         icon: Icons.delete_sweep_rounded,

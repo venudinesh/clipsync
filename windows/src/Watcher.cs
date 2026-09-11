@@ -6,6 +6,7 @@
 // waits for the last one before anything is stored or any model is called.
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -90,6 +91,10 @@ namespace ClipSyncAI
                 }
                 return false;
             }
+            // Masked before anything else, so a secret copied in a hurry never
+            // reaches the store. What follows compares and files the masked
+            // text, which is the text the app now owns.
+            if (_hub.Settings.AutoRedact) trimmed = Secrets.Redact(trimmed).Text;
             // The secret filter guards what arrives without anyone looking at it.
             // Text typed into the composer is already in front of the person who
             // typed it, so refusing to keep it would be the app overruling them.
@@ -103,17 +108,86 @@ namespace ClipSyncAI
                 if (announce) _hub.Say("Already the latest clip");
                 return false;
             }
+            ClipEntry similar = ClipSmart.FindSimilar(trimmed, _hub.Clips.Items, 0.85);
+            if (similar != null && announce)
+            {
+                AskDuplicate(trimmed, similar, announce);
+                return true;
+            }
             if (_working)
             {
                 if (announce) _hub.Oops("Still working on the last one");
                 return false;
             }
+            StartWork(trimmed, announce);
+            return true;
+        }
+
+        private void StartWork(string trimmed, bool announce)
+        {
             _working = true;
             Thread t = new Thread(new ParameterizedThreadStart(Work));
             t.IsBackground = true;
             t.Name = "clip-process";
-            t.Start(new object[] { text, announce });
-            return true;
+            t.Start(new object[] { trimmed, announce });
+        }
+
+        /// "This looks like one you kept" — keep both, merge into the earlier
+        /// one with the join machinery, or drop the newcomer. Asked on the
+        /// interface thread, because a sheet is no place for a worker.
+        private void AskDuplicate(string trimmed, ClipEntry similar, bool announce)
+        {
+            Control pump = _hub.Pump;
+            Action ask = delegate { DuplicateSheet(trimmed, similar, announce); };
+            if (pump == null || !pump.IsHandleCreated) { ask(); return; }
+            try { pump.BeginInvoke(ask); }
+            catch (Exception) { StartWork(trimmed, announce); }
+        }
+
+        private void DuplicateSheet(string trimmed, ClipEntry similar, bool announce)
+        {
+            if (_hub.Sheet == null) { StartWork(trimmed, announce); return; }
+            string preview = similar.Title;
+            if (string.IsNullOrEmpty(preview)) preview = similar.Preview(80);
+            Verbs list = new Verbs();
+            list.Add(Glyph.Copy, "Keep both", "File it as a new clip anyway", false,
+                delegate { _hub.Sheet.Close(); StartWork(trimmed, announce); });
+            list.Add(Glyph.Link, "Merge", "Fold it into the earlier clip", false,
+                delegate { _hub.Sheet.Close(); MergeInto(similar, trimmed, announce); });
+            list.Add(Glyph.Trash, "Discard", "Drop the newcomer", true,
+                delegate { _hub.Sheet.Close(); _hub.Say("Discarded"); });
+            _hub.Sheet.Open("Very similar clip kept",
+                "This looks like \"" + preview + "\" from " +
+                Say.StampLong(similar.Timestamp), list, list.Wants());
+            list.Lay();
+        }
+
+        private void MergeInto(ClipEntry similar, string trimmed, bool announce)
+        {
+            // Titled here, heuristically: the merge itself runs on the
+            // interface thread, which is no place to ask a model.
+            ClipTitleTags meta = ClipSmart.Heuristic(trimmed);
+            ClipEntry fresh = new ClipEntry();
+            fresh.RawText = trimmed;
+            fresh.Title = meta.Title;
+            fresh.Tags = meta.Tags;
+            ClipEntry joined = ClipJoin.Join(
+                new List<ClipEntry>(new ClipEntry[] { similar, fresh }));
+            similar.RawText = joined.RawText;
+            similar.ProcessedMarkdown = joined.ProcessedMarkdown;
+            similar.Timestamp = DateTime.Now;
+            similar.IsChecklist = joined.IsChecklist;
+            if (string.IsNullOrEmpty(similar.Title)) similar.Title = fresh.Title;
+            if (similar.Tags != null && fresh.Tags != null)
+            {
+                foreach (string t in fresh.Tags)
+                {
+                    if (!similar.Tags.Contains(t)) similar.Tags.Add(t);
+                }
+            }
+            _hub.Clips.Save();
+            _hub.RaiseClips();
+            if (announce) _hub.Say("Merged into the earlier clip");
         }
 
         private bool Newest(string trimmed)
@@ -144,25 +218,44 @@ namespace ClipSyncAI
                 Paths.Log("clip processing", ex);
                 processed = ClipRegex.Process(text);
             }
-            Post(text, processed, announce);
+            // Titled on the worker, never on the interface thread: asking a
+            // model from the UI thread would freeze the feed it is typing on.
+            ClipTitleTags meta = ClipSmart.Describe(text, delegate(string prompt)
+            {
+                try
+                {
+                    if (!_hub.Brain.Ready) return null;
+                    return _hub.Brain.Instruct(prompt, null, null);
+                }
+                catch (Exception ex)
+                {
+                    Paths.Log("clip titling", ex);
+                    return null;
+                }
+            });
+            Post(text, processed, meta.Title, meta.Tags, announce);
         }
 
-        private void Post(string raw, string processed, bool announce)
+        private void Post(string raw, string processed, string title,
+            List<string> tags, bool announce)
         {
             Control pump = _hub.Pump;
-            Action done = delegate { File(raw, processed, announce); };
+            Action done = delegate { File(raw, processed, title, tags, announce); };
             if (pump == null || !pump.IsHandleCreated) { done(); return; }
             try { pump.BeginInvoke(done); }
             catch (Exception) { _working = false; }
         }
 
-        private void File(string raw, string processed, bool announce)
+        private void File(string raw, string processed, string title,
+            List<string> tags, bool announce)
         {
             _working = false;
             ClipEntry entry = new ClipEntry();
             entry.RawText = raw;
             entry.ProcessedMarkdown = processed;
             entry.IsChecklist = ClipRegex.LooksLikeChecklist(raw);
+            entry.Title = title ?? "";
+            entry.Tags = tags ?? new List<string>();
             _hub.Clips.Items.Add(entry);
             Trim();
             _hub.Clips.Save();

@@ -67,6 +67,9 @@ namespace ClipSyncAI
             Notes.Load();
             Chats.Load();
             Brain.Model = Settings.Model;
+            int burned = ClipSmart.PurgeExpired(Clips, Settings.RetentionDays);
+            if (burned > 0) Say("Cleared " +
+                global::ClipSyncAI.Say.Plural(burned, "expired clip"));
         }
 
         public void SaveSettings()

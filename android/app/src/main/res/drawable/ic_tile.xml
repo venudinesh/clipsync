@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Clipboard mark. The system tints it for the tile, so it stays white. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M19,3h-4.18C14.4,1.84 13.3,1 12,1S9.6,1.84 9.18,3H5V21H19V3zM12,3c0.55,0 1,0.45 1,1h-2c0,-0.55 0.45,-1 1,-1zM7,7h10v12H7V7z" />
+</vector>

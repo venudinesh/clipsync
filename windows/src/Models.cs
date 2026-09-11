@@ -78,12 +78,19 @@ namespace ClipSyncAI
         public bool IsPinned;
         public bool IsChecklist;
 
+        /// A short human title and a few lowercase tags, written at capture
+        /// time. Empty on clips kept before titles existed.
+        public string Title;
+        public List<string> Tags;
+
         public ClipEntry()
         {
             Id = Ids.New();
             RawText = "";
             ProcessedMarkdown = "";
             Timestamp = DateTime.Now;
+            Title = "";
+            Tags = new List<string>();
         }
 
         public string Preview(int max)
@@ -97,13 +104,20 @@ namespace ClipSyncAI
 
         public JVal ToJson()
         {
+            JVal tags = JVal.Array();
+            if (Tags != null)
+            {
+                foreach (string t in Tags) tags.Add(JVal.Of(t));
+            }
             return JVal.Object()
                 .Set("id", Id)
                 .Set("rawText", RawText)
                 .Set("processedMarkdown", ProcessedMarkdown)
                 .Set("timestamp", Clock.ToMs(Timestamp))
                 .Set("isPinned", IsPinned)
-                .Set("isChecklist", IsChecklist);
+                .Set("isChecklist", IsChecklist)
+                .Set("title", Title ?? "")
+                .Set("tags", tags);
         }
 
         public static ClipEntry FromJson(JVal j)
@@ -116,6 +130,13 @@ namespace ClipSyncAI
             c.Timestamp = ms > 0 ? Clock.FromMs(ms) : DateTime.Now;
             c.IsPinned = j["isPinned"].AsBool(false);
             c.IsChecklist = j["isChecklist"].AsBool(false);
+            c.Title = j["title"].AsString("");
+            c.Tags = new List<string>();
+            foreach (JVal t in j["tags"].Items())
+            {
+                string s = t.AsString("").Trim();
+                if (s.Length > 0) c.Tags.Add(s);
+            }
             return c;
         }
     }

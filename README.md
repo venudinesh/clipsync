@@ -12,7 +12,7 @@ No account. No server. No telemetry. No "we value your privacy" page that means 
   <img alt="Linux" src="https://img.shields.io/badge/platform-Linux%20(deb%20%2F%20rpm)-1a1a1c?style=flat-square">
   <img alt="macOS" src="https://img.shields.io/badge/platform-macOS%2012%2B-1a1a1c?style=flat-square">
   <img alt="Offline" src="https://img.shields.io/badge/network-100%25%20offline-83b294?style=flat-square">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-201%20%2B%20540%20passing-83b294?style=flat-square">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-235%20%2B%20600%20passing-83b294?style=flat-square">
 </p>
 
 ---
@@ -26,6 +26,8 @@ You copy stuff all day. ClipSync AI quietly keeps it, cleans it up, and makes it
 - **Chat with your clips** — ask questions, attach documents, images, or voice notes.
 - **Keep notes** — with tags, search, and the same AI help built into the editor.
 - **Scan and dictate** — point the camera at text, or just talk. Both work offline.
+- **Join clips** — pick two or more and merge them into one, oldest first.
+- **Redact secrets** — one tap masks API keys, tokens, passwords and card numbers, or turn on auto-redact and they never get saved at all.
 
 The original is never thrown away. Every AI result sits *next to* what you copied, not on top of it.
 
@@ -45,19 +47,21 @@ Neither one has ever sent a single clip anywhere. That's not a setting. There's 
 
 - **On-device inference.** The model file lives in your app folder. Your words go in, the answer comes out, and nothing in between touches a network.
 - **Encrypted storage.** Everything is sealed with AES-256 — clips, notes, chats, settings, each with its own key. On Android the keys live in the system keystore; on Windows they're locked to your Windows account. Lose the device, and the files are scrap.
+- **A lock on the front door.** Set a PIN and the app asks for it on launch and every return from the background — on Windows too.
+- **Secrets never land.** Auto-redact masks API keys, tokens, passwords and card numbers *before* a clip is saved, and clips can self-destruct: keep them forever, a day, a week, or a month.
 - **You can check.** Turn on airplane mode (or pull the network cable on your PC). Everything keeps working except downloading new models. That's the whole privacy audit, and it takes ten seconds.
 
 ## A quick tour
 
-**Clips** — your clipboard history, searchable and pinnable. Every entry can be cleaned up, summarised, retitled, or turned into markdown. Delete offers an undo, because everyone fat-fingers sometimes.
+**Clips** — your clipboard history: searchable, pinnable, and now relevance-ranked, so a title hit beats a body hit and rare words beat common ones. Every clip gets a title and tags at capture (written by the model when one is loaded), every entry can be cleaned up, summarised, retitled, joined with others, or redacted — and saving something twice gets you asked: keep both, merge, or discard. Delete offers an undo, because everyone fat-fingers sometimes.
 
 **Chat** — a real conversation with the model, streamed live, with markdown rendering. Attach a document, a photo (read by on-device OCR first), a voice note (transcribed first), or just paste. Long-press any message to copy it, summarise it, save it to notes, or regenerate the reply.
 
 **Notes** — a markdown editor with tags and search. The AI bar can summarise, expand, fix grammar, or pull out action items — and every one of those can be undone.
 
-**Capture (OCR & Voice)** — scan text from a photo or a region of your screen, dictate instead of typing. Results are editable before you save them, because recognition is never perfect and we'd rather admit it.
+**Capture (OCR & Voice)** — scan text from a photo or a region of your screen, dictate instead of typing. Results are editable before you save them, because recognition is never perfect and we'd rather admit it. On Android you can also share text straight into Clips from any app's share sheet, or file the clipboard from a Quick Settings tile without opening the app.
 
-**Settings** — four tidy tabs: AI (models, downloads, device advice, model-server connection), Themes & UI, System (clipboard service, permissions), Data (export everything to markdown, or wipe with confirmation). The *Model connection* dialog offers presets for OpenAI, Gemini, Claude, and other providers, or a custom OpenAI-compatible gateway — with opt-in confirmation before any chat data is sent.
+**Settings** — four tidy tabs: AI (models, downloads, device advice, model-server connection), Themes & UI, System (clipboard service, permissions, redact-on-capture), Data (privacy lock and clip lifetime, export everything to markdown, or wipe with confirmation). The *Model connection* dialog offers presets for OpenAI, Gemini, Claude, and other providers, or a custom OpenAI-compatible gateway — with opt-in confirmation before any chat data is sent.
 
 ## The look and feel
 
@@ -66,7 +70,7 @@ We rebuilt the whole interface around one design system, so everything feels lik
 - **Liquid Glass navigation** — a floating glass capsule with a lensed rim, refraction, and chromatic shimmer on modern Android. Nine sliders and live preview if you like to tinker.
 - **Eight soft accents** — muted, pigment-like colours (Rose Quartz is the default), all checked for readability automatically.
 - **AMOLED black** for OLED screens, or a warm off-black everywhere else. No pure-black flatness, no glow spam.
-- **Desktop differences that make sense** — on Windows the capsule becomes a left rail, swipes become hover actions, the camera becomes screen-region capture, and there are global hotkeys (`Ctrl+Shift+V` to summon, `Ctrl+Shift+C` to tidy) plus a tray icon. A mouse is not a thumb, so we didn't pretend.
+- **Desktop differences that make sense** — on Windows the capsule becomes a left rail, swipes become hover actions, the camera becomes screen-region capture, and there are global hotkeys (`Ctrl+Shift+V` to summon, `Ctrl+Shift+C` to tidy, `Ctrl+Shift+H` for a Win+V-style history popup that pastes back into whatever you're in) plus a tray icon. A mouse is not a thumb, so we didn't pretend.
 
 ## Build it yourself
 
@@ -95,7 +99,7 @@ You need... nothing. Seriously — the C# compiler already lives inside Windows:
 windows\build.cmd
 ```
 
-That runs all 540 tests first (and stops if any fail), then writes both executables to `windows/build/`, each with the llama.cpp runtime embedded. Run the one that matches your machine — x86 works everywhere, though embedded models want the 64-bit build.
+That runs all 600 tests first (and stops if any fail), then writes both executables to `windows/build/`, each with the llama.cpp runtime embedded. Run the one that matches your machine — x86 works everywhere, though embedded models want the 64-bit build.
 
 ### Linux & macOS (GitHub Actions)
 

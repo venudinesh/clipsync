@@ -34,6 +34,7 @@ namespace ClipSyncAI.Tests
                 TidyTests.Run();
                 JoinTests.Run();
                 SecretsTests.Run();
+                SmartTests.Run();
                 CoreTests.Run();
                 MarkdownTests.Run();
                 ShellTests.Run();

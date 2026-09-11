@@ -46,7 +46,10 @@ namespace ClipSyncAI
             new Glyph[] { Glyph.Copy, Glyph.Pin, Glyph.More };
 
         /// Rebuilds the visible list from the store, newest first with pinned
-        /// clips held above, filtered by whatever is in the search box.
+        /// clips held above, filtered by whatever is in the search box. A query
+        /// ranks by relevance — title hits above tag hits above body hits,
+        /// rare words above common ones — instead of merely filtering, because
+        /// a full history is searched, not scrolled.
         private void Fill()
         {
             string q = _find.Text.Trim();
@@ -56,7 +59,21 @@ namespace ClipSyncAI
             {
                 if (Matches(all[i], q)) _rows.Add(new ClipRow(all[i]));
             }
-            _rows.Sort(Order);
+            if (q.Length > 0)
+            {
+                List<string> terms = ClipSmart.Words(q, 2);
+                Dictionary<string, double> idf = ClipSmart.Idf(all, terms);
+                _rows.Sort(delegate(ClipRow a, ClipRow b)
+                {
+                    int r = ClipSmart.Score(b.Clip, terms, idf)
+                        .CompareTo(ClipSmart.Score(a.Clip, terms, idf));
+                    return r != 0 ? r : Order(a, b);
+                });
+            }
+            else
+            {
+                _rows.Sort(Order);
+            }
             Count();
             Empty(q);
             _list.Reload();
@@ -65,6 +82,14 @@ namespace ClipSyncAI
         private static bool Matches(ClipEntry c, string q)
         {
             if (q.Length == 0) return true;
+            if (Has(c.Title, q)) return true;
+            if (c.Tags != null)
+            {
+                for (int i = 0; i < c.Tags.Count; i++)
+                {
+                    if (Has(c.Tags[i], q)) return true;
+                }
+            }
             return Has(c.RawText, q) || Has(c.ProcessedMarkdown, q);
         }
 

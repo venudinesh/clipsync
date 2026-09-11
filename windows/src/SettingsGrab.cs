@@ -15,13 +15,17 @@ namespace ClipSyncAI
         private static readonly int[] Keeps = { 200, 500, 2000, 10000 };
         private static readonly int[] Floors = { 1, 2, 5, 20 };
         private static readonly int[] Waits = { 400, 800, 1500, 2000, 3000 };
+        private static readonly int[] Lives = { 0, 1, 7, 30 };
 
         private Group Grab()
         {
             _watch.Changed += OnWatch;
             _auto.Changed += OnAuto;
             _safe.Changed += OnSafe;
+            _redact.Changed += OnRedact;
             _keep.SetOptions(new string[] { "200", "500", "2000", "10000" }, 1);
+            _life.SetOptions(new string[] { "Forever", "1 day", "7 days", "30 days" }, 0);
+            _life.Changed += OnLife;
             _keep.Changed += OnKeep;
             _floor.SetOptions(new string[] { "1", "2", "5", "20" }, 1);
             _floor.Changed += OnFloor;
@@ -37,6 +41,10 @@ namespace ClipSyncAI
             g.Add(_autoRow);
             g.Add(Row("Skip passwords and keys", "Anything that looks like a password, a card " +
                 "number or an API key is not saved at all", _safe, 0));
+            g.Add(Row("Mask secrets instead", "Keys, tokens and passwords are masked " +
+                "as clips land, rather than refused", _redact, 0));
+            g.Add(Row("Keep clips for", "Older clips are cleared on launch. Pinned " +
+                "clips are never dropped", _life, Theme.Px(250)));
             g.Add(Row("Keep at most", "The oldest go first when the list is full. Pinned clips " +
                 "are never dropped", _keep, Theme.Px(250)));
             g.Add(Row("Ignore anything shorter than", "In characters. Stops a stray letter from " +
@@ -68,6 +76,27 @@ namespace ClipSyncAI
             Hub.Settings.SkipSensitive = _safe.On;
             Hub.SaveSettings();
             if (!_safe.On) Hub.Say("Passwords will be saved like anything else now");
+        }
+
+        private void OnRedact(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            Hub.Settings.AutoRedact = _redact.On;
+            Hub.SaveSettings();
+            if (_redact.On) Hub.Say("Secrets will be masked as clips land");
+        }
+
+        private void OnLife(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            Hub.Settings.RetentionDays = Lives[Math.Min(_life.Index, Lives.Length - 1)];
+            Hub.SaveSettings();
+            int n = ClipSmart.PurgeExpired(Hub.Clips, Hub.Settings.RetentionDays);
+            if (n > 0)
+            {
+                Hub.RaiseClips();
+                Hub.Say("Cleared " + Say.Plural(n, "expired clip"));
+            }
         }
 
         private void OnKeep(object sender, EventArgs e)
