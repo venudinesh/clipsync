@@ -10,7 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.core.content.ContextCompat
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.plugin.common.MethodChannel
@@ -20,8 +20,11 @@ import io.flutter.plugin.common.MethodChannel
  * 1. Registers the Dart ↔ Kotlin MethodChannel
  * 2. Starts/stops the native ClipboardForegroundService
  * 3. Exposes clipboard read/write operations to Flutter
+ *
+ * A FragmentActivity (rather than a plain FlutterActivity) because the
+ * biometric prompt needs a fragment host.
  */
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"

@@ -63,6 +63,10 @@ dependencies:
   # On-device speech-to-text via Whisper.cpp
   whisper_flutter_new: ^1.0.1
 
+  # Biometric unlock (fingerprint / face) for the app lock screen.
+  # Android + macOS only; Linux and desktop fall back to the PIN.
+  local_auth: ^3.0.2
+
   # File downloading for GGUF model acquisition
   http: ^1.2.1
 

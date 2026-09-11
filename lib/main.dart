@@ -20,6 +20,8 @@ import 'package:whisper_flutter_new/whisper_flutter_new.dart';
 
 import 'services/device_info_service.dart';
 import 'services/ai_connection_service.dart';
+import 'services/biometric_service.dart';
+import 'services/embedding_service.dart';
 import 'services/on_device_llm_service.dart';
 import 'services/secure_storage_service.dart';
 import 'services/voice_recorder_service.dart';
@@ -339,6 +341,13 @@ class ClipEntry {
   final String title;
   final List<String> tags;
 
+  /// A meaning vector for semantic search, written at capture time when the
+  /// indexing model is loaded. [embeddingModel] names the model that wrote
+  /// it: vectors from different models live in different spaces and are
+  /// never compared. Null on clips kept before indexing or while it is off.
+  final List<double>? embedding;
+  final String embeddingModel;
+
   ClipEntry({
     String? id,
     required this.rawText,
@@ -348,6 +357,8 @@ class ClipEntry {
     this.isChecklist = false,
     this.title = '',
     List<String>? tags,
+    this.embedding,
+    this.embeddingModel = '',
   })  : id = id ?? _uuid.v4(),
         timestamp = timestamp ?? DateTime.now(),
         tags = tags ?? const [];
@@ -361,18 +372,30 @@ class ClipEntry {
         'isChecklist': isChecklist,
         if (title.isNotEmpty) 'title': title,
         if (tags.isNotEmpty) 'tags': tags,
+        if (embedding != null && embedding!.isNotEmpty) 'embedding': embedding,
+        if (embeddingModel.isNotEmpty) 'embeddingModel': embeddingModel,
       };
 
-  factory ClipEntry.fromMap(Map<String, dynamic> m) => ClipEntry(
-        id: m['id'],
-        rawText: m['rawText'] ?? '',
-        processedMarkdown: m['processedMarkdown'] ?? '',
-        timestamp: DateTime.parse(m['timestamp']),
-        isPinned: m['isPinned'] ?? false,
-        isChecklist: m['isChecklist'] ?? false,
-        title: (m['title'] as String?) ?? '',
-        tags: (m['tags'] as List?)?.whereType<String>().toList() ?? const [],
-      );
+  factory ClipEntry.fromMap(Map<String, dynamic> m) {
+    final rawVec = m['embedding'] as List?;
+    List<double>? vec;
+    if (rawVec != null) {
+      vec = rawVec.whereType<num>().map((e) => e.toDouble()).toList();
+      if (vec.isEmpty) vec = null;
+    }
+    return ClipEntry(
+      id: m['id'],
+      rawText: m['rawText'] ?? '',
+      processedMarkdown: m['processedMarkdown'] ?? '',
+      timestamp: DateTime.parse(m['timestamp']),
+      isPinned: m['isPinned'] ?? false,
+      isChecklist: m['isChecklist'] ?? false,
+      title: (m['title'] as String?) ?? '',
+      tags: (m['tags'] as List?)?.whereType<String>().toList() ?? const [],
+      embedding: vec,
+      embeddingModel: (m['embeddingModel'] as String?) ?? '',
+    );
+  }
 
   ClipEntry copyWith({
     String? rawText,
@@ -381,6 +404,8 @@ class ClipEntry {
     bool? isChecklist,
     String? title,
     List<String>? tags,
+    List<double>? embedding,
+    String? embeddingModel,
   }) =>
       ClipEntry(
         id: id,
@@ -391,6 +416,8 @@ class ClipEntry {
         isChecklist: isChecklist ?? this.isChecklist,
         title: title ?? this.title,
         tags: tags ?? this.tags,
+        embedding: embedding ?? this.embedding,
+        embeddingModel: embeddingModel ?? this.embeddingModel,
       );
 }
 
@@ -680,6 +707,39 @@ List<ClipEntry> rankClips(String query, List<ClipEntry> clips) {
   return out;
 }
 
+/// Orders clips by meaning: cosine similarity between the query vector and
+/// each clip's stored vector. Only vectors written by [modelId] are compared —
+/// different models live in different spaces, and length alone proves nothing.
+/// Clips without a vector keep their keyword order underneath, so a
+/// half-indexed feed still reads sensibly instead of hiding the unindexed half.
+List<ClipEntry> rankClipsVector(
+  String queryText,
+  List<double> query,
+  List<ClipEntry> clips, {
+  String modelId = '',
+}) {
+  final scored = <ClipEntry, double>{};
+  final rest = <ClipEntry>[];
+  for (final c in clips) {
+    final v = c.embedding;
+    if (v != null &&
+        v.length == query.length &&
+        modelId.isNotEmpty &&
+        c.embeddingModel == modelId) {
+      scored[c] = cosineSimilarity(query, v);
+    } else {
+      rest.add(c);
+    }
+  }
+  final ordered = scored.keys.toList()
+    ..sort((a, b) {
+      final cmp = scored[b]!.compareTo(scored[a]!);
+      return cmp != 0 ? cmp : b.timestamp.compareTo(a.timestamp);
+    });
+  ordered.addAll(rankClips(queryText, rest));
+  return ordered;
+}
+
 /// A title and tags for [text]: the model writes them when one is loaded,
 /// otherwise the first line and the most frequent meaningful words do. Never
 /// throws; the worst case is a plain first-line title with no tags.
@@ -796,7 +856,8 @@ String applyAutoRedact(String text) {
 }
 
 /// Builds a clip the way every capture path should: secrets masked first so
-/// they never reach the box, then formatted, then titled and tagged.
+/// they never reach the box, then formatted, then titled and tagged — and
+/// indexed with a meaning vector when the indexing model is loaded.
 Future<ClipEntry> buildClipEntry(
   String rawText,
   OllamaClipProcessor processor,
@@ -804,11 +865,19 @@ Future<ClipEntry> buildClipEntry(
   final clean = applyAutoRedact(rawText);
   final processed = await processor.process(clean);
   final meta = await titleAndTags(clean, processor);
+  List<double>? vector;
+  var vectorModel = '';
+  if (embeddingService.isReady) {
+    vector = await embeddingService.embed(clean);
+    if (vector != null) vectorModel = embeddingService.modelId ?? '';
+  }
   return ClipEntry(
     rawText: clean,
     processedMarkdown: processed,
     title: meta.title,
     tags: meta.tags,
+    embedding: vector,
+    embeddingModel: vectorModel,
   );
 }
 
@@ -823,6 +892,22 @@ bool appPinSet() {
   final pin = Hive.box(AppDefaults.hiveSettingsBox).get('appPin');
   return pin is String && pin.isNotEmpty;
 }
+
+/// Whether biometric unlock is switched on. Meaningless without a PIN: the
+/// fingerprint opens the lock, the PIN stays the way back in when it fails.
+bool biometricUnlockSet() {
+  if (!Hive.isBoxOpen(AppDefaults.hiveSettingsBox)) return false;
+  return Hive.box(AppDefaults.hiveSettingsBox).get('biometricUnlock') == true;
+}
+
+/// The meaning-vector engine, shared by capture (indexing), search and
+/// settings. One instance for the app: two engines would mean two models in
+/// RAM for no reason.
+final EmbeddingService embeddingService = EmbeddingService();
+
+/// The biometric prompter. Thin by design: the lock screen owns the UI, this
+/// only asks the OS.
+final BiometricService biometricService = BiometricService();
 
 class Note {
   final String id;
@@ -1659,6 +1744,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) => _initLlmEngine());
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _purgeExpiredClipsStart());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initEmbeddingModel());
+  }
+
+  /// Reloads the indexing model the user left loaded, silently: search by
+  /// meaning simply works again, and if the file is gone the flag stays off.
+  Future<void> _initEmbeddingModel() async {
+    final settings = Hive.box(AppDefaults.hiveSettingsBox);
+    final path = settings.get('embeddingModelPath');
+    final id = settings.get('embeddingModelId');
+    if (path is! String || path.isEmpty) return;
+    try {
+      if (!await File(path).exists()) return;
+      await embeddingService.load(
+        path,
+        modelId: id is String && id.isNotEmpty ? id : null,
+      );
+    } catch (_) {}
+    if (mounted) setState(() {});
   }
 
   /// Burns clips older than the retention setting, once per launch, and says
@@ -2072,6 +2175,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               Positioned.fill(
                 child: AppLockScreen(
                   onUnlock: () => setState(() => _locked = false),
+                  biometricOffered:
+                      biometricUnlockSet() && appPinSet(),
+                  onBiometric: () => biometricService.authenticate(),
                 ),
               ),
           ],
@@ -2086,10 +2192,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
 /// The privacy lock: a PIN pad over the whole app. The PIN rests in the
 /// encrypted settings box, so guessing at this screen is the only way in that
-/// does not go through the device keystore first.
+/// does not go through the device keystore first. Biometrics, where the
+/// device offers them, are a shortcut past the pad — the PIN stays the way
+/// back in when they fail.
 class AppLockScreen extends StatefulWidget {
-  const AppLockScreen({required this.onUnlock, super.key});
+  const AppLockScreen({
+    required this.onUnlock,
+    this.biometricOffered = false,
+    this.onBiometric,
+    super.key,
+  });
   final VoidCallback onUnlock;
+  final bool biometricOffered;
+  final Future<bool> Function()? onBiometric;
 
   @override
   State<AppLockScreen> createState() => _AppLockScreenState();
@@ -2098,6 +2213,7 @@ class AppLockScreen extends StatefulWidget {
 class _AppLockScreenState extends State<AppLockScreen> {
   final _pin = TextEditingController();
   String? _error;
+  bool _bioBusy = false;
 
   @override
   void dispose() {
@@ -2113,6 +2229,23 @@ class _AppLockScreenState extends State<AppLockScreen> {
     } else {
       setState(() => _error = 'Wrong PIN, try again');
       _pin.clear();
+    }
+  }
+
+  Future<void> _authBio() async {
+    final fn = widget.onBiometric;
+    if (fn == null) return;
+    setState(() {
+      _bioBusy = true;
+      _error = null;
+    });
+    final ok = await fn();
+    if (!mounted) return;
+    setState(() => _bioBusy = false);
+    if (ok) {
+      widget.onUnlock();
+    } else {
+      setState(() => _error = 'Biometric check failed — use your PIN');
     }
   }
 
@@ -2159,6 +2292,17 @@ class _AppLockScreenState extends State<AppLockScreen> {
                 icon: Icons.lock_open_rounded,
                 onPressed: _tryUnlock,
               ),
+              if (widget.biometricOffered) ...[
+                const SizedBox(height: Space.sm),
+                Center(
+                  child: IconAction(
+                    icon: Icons.fingerprint_rounded,
+                    tooltip: 'Unlock with biometrics',
+                    size: 30,
+                    onPressed: _bioBusy ? null : _authBio,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -2201,6 +2345,13 @@ class _DashboardViewState extends State<DashboardView>
   final _search = TextEditingController();
   bool _isProcessing = false;
 
+  /// Meaning search: a debounced query vector that, when the indexing model
+  /// answers, replaces keyword ranking with cosine ranking. Keystrokes always
+  /// re-rank by keyword first, so the list never waits on the model.
+  Timer? _vectorTimer;
+  List<double>? _queryVector;
+  bool _vectorMode = false;
+
   /// Join mode: rows toggle membership in [_selectedIds] instead of opening,
   /// and the join bar under the feed header commits the merge.
   bool _selecting = false;
@@ -2216,6 +2367,7 @@ class _DashboardViewState extends State<DashboardView>
   @override
   void dispose() {
     captureRequested.removeListener(_onCaptureRequested);
+    _vectorTimer?.cancel();
     _manualController.dispose();
     _search.dispose();
     super.dispose();
@@ -2657,10 +2809,22 @@ class _DashboardViewState extends State<DashboardView>
     final pinned = entries.where((e) => e.isPinned).length;
     final today = entries.where(_isToday).length;
     // A query ranks by relevance instead of merely filtering, because a
-    // 500-clip feed is searched, not scrolled.
-    final visible = _search.text.trim().isEmpty
-        ? entries
-        : rankClips(_search.text, entries);
+    // 500-clip feed is searched, not scrolled. Meaning vectors upgrade the
+    // ranking when the indexing model is loaded; keywords answer instantly.
+    final q = _search.text.trim();
+    final List<ClipEntry> visible;
+    if (q.isEmpty) {
+      visible = entries;
+    } else if (_vectorMode && _queryVector != null) {
+      visible = rankClipsVector(
+        q,
+        _queryVector!,
+        entries,
+        modelId: embeddingService.modelId ?? '',
+      );
+    } else {
+      visible = rankClips(q, entries);
+    }
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is ScrollUpdateNotification && widget.scrollNotifier != null) {
@@ -2908,24 +3072,80 @@ class _DashboardViewState extends State<DashboardView>
   }
 
   /// The feed's filter, in the same voice as the history sheet's: title hits
-  /// above tag hits above body hits, rare words above common ones.
+  /// above tag hits above body hits, rare words above common ones — upgraded
+  /// to meaning search once the query vector lands.
   Widget _clipSearchBox() {
-    return InlineField(
-      controller: _search,
-      hint: 'Search clips',
-      onChanged: (_) => setState(() {}),
-      trailing: _search.text.isEmpty
-          ? null
-          : IconAction(
-              icon: Icons.close_rounded,
-              tooltip: 'Clear search',
-              size: 16,
-              onPressed: () {
-                _search.clear();
-                setState(() {});
-              },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InlineField(
+          controller: _search,
+          hint: 'Search clips',
+          onChanged: (_) {
+            _scheduleVectorSearch();
+            setState(() {});
+          },
+          trailing: _search.text.isEmpty
+              ? null
+              : IconAction(
+                  icon: Icons.close_rounded,
+                  tooltip: 'Clear search',
+                  size: 16,
+                  onPressed: () {
+                    _vectorTimer?.cancel();
+                    _search.clear();
+                    _queryVector = null;
+                    _vectorMode = false;
+                    setState(() {});
+                  },
+                ),
+        ),
+        if (_vectorMode && _search.text.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 2),
+            child: Text(
+              'meaning search · ${_indexedCount()} of ${_entries.length} clips indexed',
+              style: AppType.meta(context),
             ),
+          ),
+      ],
     );
+  }
+
+  /// Asks the indexing model what the query means, debounced so fast typing
+  /// does not queue a model call per keystroke. A dropped query (typed past
+  /// while embedding) never resurrects a stale vector.
+  void _scheduleVectorSearch() {
+    _vectorTimer?.cancel();
+    _queryVector = null;
+    final q = _search.text.trim();
+    if (q.isEmpty || !embeddingService.isReady) {
+      _vectorMode = false;
+      return;
+    }
+    _vectorTimer = Timer(const Duration(milliseconds: 600), () async {
+      final vec = await embeddingService.embed(q);
+      if (!mounted || _search.text.trim() != q) return;
+      setState(() {
+        _queryVector = vec;
+        _vectorMode = vec != null;
+      });
+    });
+  }
+
+  int _indexedCount() {
+    final model = embeddingService.modelId;
+    if (model == null) return 0;
+    var n = 0;
+    for (final e in _entries) {
+      if (e.embeddingModel == model &&
+          e.embedding != null &&
+          e.embedding!.isNotEmpty) {
+        n++;
+      }
+    }
+    return n;
   }
 
   /// The entry that is about to exist: the same margin, the same rule and two
@@ -5458,6 +5678,13 @@ class _SettingsViewState extends State<SettingsView>
   /// save dialog, so a second tap cannot start a parallel export.
   bool _isExporting = false;
 
+  /// Meaning-search work state: one job at a time, narrated on the panel.
+  bool _embBusy = false;
+  String _embStatus = '';
+
+  /// Whether this device has biometrics enrolled, asked once per visit.
+  bool _bioAvailable = false;
+
   // Tab navigation for settings categories
   int _settingsTab = 0;
   static const _tabLabels = ['AI', 'Themes & UI', 'System', 'Data'];
@@ -5471,6 +5698,9 @@ class _SettingsViewState extends State<SettingsView>
         ? 'Model loaded'
         : 'No model loaded';
     _loadDownloadedModels();
+    biometricService.hasEnrolledBiometrics().then((v) {
+      if (mounted) setState(() => _bioAvailable = v);
+    });
   }
 
   Future<void> _loadDownloadedModels() async {
@@ -6068,8 +6298,173 @@ class _SettingsViewState extends State<SettingsView>
           );
         },
       ),
+      _embeddingPanel(),
       const SizedBox(height: Space.lg),
     ];
+  }
+
+  /// Search by meaning, powered by a small indexing model that never chats.
+  /// Keyword search always works; this panel adds vectors on top: download
+  /// once, load, and every clip filed afterwards carries its meaning with it.
+  Widget _embeddingPanel() {
+    final ready = embeddingService.isReady;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SectionHeader('Meaning search', count: ready ? 'on' : null),
+        Text(
+          ready
+              ? 'Indexed clips rank by meaning; the rest rank by keywords.'
+              : 'An indexing model adds search by meaning to keyword search.',
+          style: AppType.meta(context),
+        ),
+        const SizedBox(height: Space.sm),
+        FutureBuilder<bool>(
+          future: widget.processor.llm.isModelDownloaded(kEmbeddingModel),
+          builder: (context, snap) {
+            final downloaded = snap.data ?? false;
+            return Wrap(
+              spacing: Space.sm,
+              runSpacing: Space.sm,
+              children: [
+                if (!downloaded)
+                  QuietAction(
+                    label: 'Download indexing model (144 MB)',
+                    icon: Icons.download_rounded,
+                    dense: true,
+                    onPressed:
+                        _embBusy ? null : _downloadEmbeddingModel,
+                  ),
+                if (downloaded && !ready)
+                  QuietAction(
+                    label: 'Load indexing model',
+                    icon: Icons.memory_rounded,
+                    dense: true,
+                    onPressed: _embBusy ? null : _loadEmbeddingModel,
+                  ),
+                if (ready) ...[
+                  QuietAction(
+                    label: 'Unload',
+                    icon: Icons.memory_outlined,
+                    dense: true,
+                    onPressed: _embBusy ? null : _unloadEmbeddingModel,
+                  ),
+                  QuietAction(
+                    label: 'Index all clips',
+                    icon: Icons.auto_awesome_rounded,
+                    dense: true,
+                    onPressed: _embBusy ? null : _indexAllClips,
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+        if (_embStatus.isNotEmpty) ...[
+          const SizedBox(height: Space.xs),
+          Text(_embStatus, style: AppType.meta(context)),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _downloadEmbeddingModel() async {
+    setState(() {
+      _embBusy = true;
+      _embStatus = 'Downloading the indexing model…';
+    });
+    try {
+      final path = await widget.processor.llm.startDownload(kEmbeddingModel);
+      await _settings.put('embeddingModelPath', path);
+      await _settings.put('embeddingModelId', kEmbeddingModel.id);
+      await embeddingService.load(path, modelId: kEmbeddingModel.id);
+      _embStatus = 'Indexing model ready. New clips index as they land.';
+    } catch (e) {
+      _embStatus =
+          'Download failed: ${e.toString().split('\n').first}';
+    }
+    if (mounted) setState(() => _embBusy = false);
+  }
+
+  Future<void> _loadEmbeddingModel() async {
+    setState(() {
+      _embBusy = true;
+      _embStatus = 'Loading the indexing model…';
+    });
+    try {
+      final path =
+          await widget.processor.llm.getLocalModelPath(kEmbeddingModel);
+      if (!await File(path).exists()) {
+        _embStatus = 'The model file is gone — download it again.';
+      } else {
+        await _settings.put('embeddingModelPath', path);
+        await _settings.put('embeddingModelId', kEmbeddingModel.id);
+        await embeddingService.load(path, modelId: kEmbeddingModel.id);
+        _embStatus = 'Indexing model ready.';
+      }
+    } catch (e) {
+      _embStatus = 'Could not load it: ${e.toString().split('\n').first}';
+    }
+    if (mounted) setState(() => _embBusy = false);
+  }
+
+  Future<void> _unloadEmbeddingModel() async {
+    await embeddingService.unload();
+    await _settings.delete('embeddingModelPath');
+    await _settings.delete('embeddingModelId');
+    if (mounted) {
+      setState(() => _embStatus = 'Indexing off. Keyword search as before.');
+    }
+  }
+
+  /// Vectors every clip that lacks one from this indexing model, in place.
+  /// Slow on a full history by design — each clip gets its own forward pass —
+  /// so the status line narrates it and the buttons sleep meanwhile.
+  Future<void> _indexAllClips() async {
+    if (!embeddingService.isReady) return;
+    final model = embeddingService.modelId ?? '';
+    setState(() {
+      _embBusy = true;
+      _embStatus = 'Indexing…';
+    });
+    final box = Hive.box(AppDefaults.hiveClipBox);
+    var done = 0;
+    var skipped = 0;
+    for (final key in box.keys.toList()) {
+      if (key == 'lastRaw') continue;
+      final val = box.get(key);
+      if (val is! Map) continue;
+      ClipEntry entry;
+      try {
+        entry = ClipEntry.fromMap(Map<String, dynamic>.from(val));
+      } catch (_) {
+        continue;
+      }
+      if (entry.embeddingModel == model &&
+          entry.embedding != null &&
+          entry.embedding!.isNotEmpty) {
+        continue;
+      }
+      final vec = await embeddingService.embed(entry.rawText);
+      if (vec == null) {
+        skipped++;
+        continue;
+      }
+      await box.put(
+        key,
+        entry.copyWith(embedding: vec, embeddingModel: model).toMap(),
+      );
+      done++;
+      if (mounted) setState(() => _embStatus = 'Indexed $done clips…');
+    }
+    if (mounted) {
+      setState(() {
+        _embBusy = false;
+        _embStatus = 'Indexed $done clips'
+            '${skipped == 0 ? '' : ', $skipped skipped'}.';
+      });
+    }
   }
 
   /// External inference is opt-in. The embedded model remains available below,
@@ -7316,6 +7711,13 @@ class _SettingsViewState extends State<SettingsView>
             : 'Your clips ask for it before they open',
         onTap: _setPinFlow,
       ),
+      if (_pinSet && _bioAvailable)
+        _switchRow(
+          title: 'Unlock with biometrics',
+          subtitle: 'Fingerprint or face instead of the PIN on the lock screen',
+          value: _settings.get('biometricUnlock') == true,
+          onChanged: _toggleBiometric,
+        ),
       if (_pinSet) ...[
         _privacyRow(
           icon: Icons.phonelink_lock_rounded,
@@ -7471,8 +7873,23 @@ class _SettingsViewState extends State<SettingsView>
     _settingsToast('PIN set. Your clips lock on launch and on return.');
   }
 
-  Future<void> _removePinFlow() async {
-    final ok = await showDialog<bool>(
+  /// Biometric unlock is proven at the switch: enabling asks the OS once, so
+  /// a device with nothing enrolled can never leave the flag on and the lock
+  /// screen fingerprint dead.
+  Future<void> _toggleBiometric(bool v) async {
+    if (v) {
+      final ok = await biometricService.authenticate();
+      if (!ok) {
+        _settingsToast('Biometric check failed — enroll first, then retry');
+        return;
+      }
+    }
+    await _settings.put('biometricUnlock', v);
+    if (mounted) setState(() {});
+    if (v) _settingsToast('Biometrics unlock your clips now');
+  }
+
+  Future<void> _removePinFlow() async {    final ok = await showDialog<bool>(
       context: context,
       builder: (dctx) => AlertDialog(
         title: const Text('Remove the PIN?'),
