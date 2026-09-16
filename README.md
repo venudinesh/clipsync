@@ -34,6 +34,18 @@ No account. No server. No telemetry. No "we value your privacy" page that means 
   <em>Dashboard · Chat · Notes · OCR & Voice · Settings · Meaning search — all running on a real device, fully offline.</em>
 </p>
 
+## Video walkthrough
+
+<p align="center">
+  <video src="screenshots/walkthrough.mp4" width="320" loop autoplay muted playsinline>
+    Your browser does not support the video tag.
+  </video>
+</p>
+
+<p align="center">
+  <em>Ten or so seconds across every screen, straight off the phone.</em>
+</p>
+
 ---
 
 ## What it does, in plain words
