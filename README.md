@@ -37,7 +37,9 @@ No account. No server. No telemetry. No "we value your privacy" page that means 
 ## Video walkthrough
 
 <p align="center">
-  <img alt="Walkthrough" src="screenshots/walkthrough.gif" width="40%">
+  <a href="https://github.com/venudinesh/clipsync/raw/refs/heads/main/screenshots/walkthrough.mp4">
+    <img alt="Walkthrough" src="screenshots/walkthrough.gif" width="40%">
+  </a>
 </p>
 
 <p align="center">
