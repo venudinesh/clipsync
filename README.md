@@ -37,7 +37,7 @@ No account. No server. No telemetry. No "we value your privacy" page that means 
 ## Video walkthrough
 
 <p align="center">
-  <video src="screenshots/walkthrough.mp4" width="320" loop autoplay muted playsinline>
+  <video src="screenshots/walkthrough.mp4" width="320" controls loop autoplay muted playsinline>
     Your browser does not support the video tag.
   </video>
 </p>
