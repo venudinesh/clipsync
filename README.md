@@ -17,6 +17,25 @@ No account. No server. No telemetry. No "we value your privacy" page that means 
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img alt="Dashboard" src="screenshots/01_dashboard.png" width="30%">
+  <img alt="Chat" src="screenshots/02_chat.png" width="30%">
+  <img alt="Notes" src="screenshots/03_notes.png" width="30%">
+</p>
+<p align="center">
+  <img alt="OCR & Voice" src="screenshots/04_ocr.png" width="30%">
+  <img alt="Settings · AI" src="screenshots/05_settings_ai.png" width="30%">
+  <img alt="Meaning search" src="screenshots/06_meaning_search.png" width="30%">
+</p>
+
+<p align="center">
+  <em>Dashboard · Chat · Notes · OCR & Voice · Settings · Meaning search — all running on a real device, fully offline.</em>
+</p>
+
+---
+
 ## What it does, in plain words
 
 You copy stuff all day. ClipSync AI quietly keeps it, cleans it up, and makes it useful:
