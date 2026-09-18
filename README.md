@@ -17,6 +17,25 @@ No account. No server. No telemetry. No "we value your privacy" page that means 
 
 ---
 
+## Launch video
+
+<p align="center">
+  <a href="https://github.com/venudinesh/clipsync/raw/refs/heads/main/screenshots/demo-pc.mp4">
+    <img alt="Launch video — desktop (16:9)" src="screenshots/demo-pc.webp" width="70%">
+  </a>
+</p>
+<p align="center">
+  <a href="https://github.com/venudinesh/clipsync/raw/refs/heads/main/screenshots/demo-phone.mp4">
+    <img alt="Launch video — phone (9:16)" src="screenshots/demo-phone.webp" width="26%">
+  </a>
+</p>
+
+<p align="center">
+  <em>The launch cut — desktop (16:9) and phone (9:16). Autoplays and loops right here; click either to watch full-res with sound.</em>
+</p>
+
+---
+
 ## Screenshots
 
 <p align="center">

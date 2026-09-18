@@ -14,3 +14,6 @@ packaging/linux/deb/control text eol=lf
 *.dll     binary
 *.exe     binary
 *.gguf    binary
+*.mp4     binary
+*.gif     binary
+*.webp    binary
