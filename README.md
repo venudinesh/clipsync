@@ -17,6 +17,37 @@ No account. No server. No telemetry. No "we value your privacy" page that means 
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img alt="Dashboard" src="screenshots/01_dashboard.png" width="30%">
+  <img alt="Chat" src="screenshots/02_chat.png" width="30%">
+  <img alt="Notes" src="screenshots/03_notes.png" width="30%">
+</p>
+<p align="center">
+  <img alt="OCR & Voice" src="screenshots/04_ocr.png" width="30%">
+  <img alt="Settings · AI" src="screenshots/05_settings_ai.png" width="30%">
+  <img alt="Meaning search" src="screenshots/06_meaning_search.png" width="30%">
+</p>
+
+<p align="center">
+  <em>Dashboard · Chat · Notes · OCR & Voice · Settings · Meaning search — all running on a real device, fully offline.</em>
+</p>
+
+## Video walkthrough
+
+<p align="center">
+  <a href="https://github.com/venudinesh/clipsync/raw/refs/heads/main/screenshots/walkthrough.mp4">
+    <img alt="Walkthrough" src="screenshots/walkthrough.gif" width="40%">
+  </a>
+</p>
+
+<p align="center">
+  <em>Ten or so seconds across every screen, straight off the phone.</em>
+</p>
+
+---
+
 ## What it does, in plain words
 
 You copy stuff all day. ClipSync AI quietly keeps it, cleans it up, and makes it useful:
@@ -145,3 +176,7 @@ Fresh, unsigned builds sometimes get a suspicious look from antivirus (Malwareby
 ## License
 
 MIT — do what you like, just keep the notice.
+
+## Disclaimer
+
+**ClipSync AI is an open-source project provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. The author(s) and contributors shall not be held liable for any damage, data loss, malfunction, or other consequence arising from installing, building, or using this software on any device. By downloading, installing, or using this software, you acknowledge that you do so entirely at your own risk. Always back up your data before installing software from any source, including this repository.**
