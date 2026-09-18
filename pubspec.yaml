@@ -70,6 +70,9 @@ dependencies:
   # File downloading for GGUF model acquisition
   http: ^1.2.1
 
+  # Launch clip playback (Android/iOS/macOS; other platforms fall back to skip)
+  video_player: ^2.9.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -88,5 +91,8 @@ dependency_overrides:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/video/intro_phone.mp4
+    - assets/video/intro_pc.mp4
   config:
     enable-swift-package-manager: false
