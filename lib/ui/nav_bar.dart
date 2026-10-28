@@ -7,23 +7,12 @@ import 'package:flutter/services.dart';
 import 'design_tokens.dart';
 import 'glass_panel.dart';
 
-/// The fade a page's content gets as it slides into the band the navigation
-/// capsule floats in.
+/// Fades page content as it scrolls behind the navigation capsule.
 ///
-/// Apple calls this a scroll edge effect, and the point is that it is *not* the
-/// bar's own material. The capsule here ships perfectly clear — no tint, no
-/// frost, by request — and a clear capsule has a problem the sliders cannot
-/// solve: a long settings list prints its body copy straight through five tab
-/// labels, two layers of type in the same pixels, and neither one wins. Raising
-/// the labels' contrast helps them and does nothing for the sentence they are
-/// sitting on top of. So the page yields instead, exactly where the bar lives.
-///
-/// The height is deliberately [navBarClearance] and not a number of its own:
-/// that is the room every page already reserves at its bottom, so anything a
-/// page has correctly kept clear of the capsule — a composer, a floating action,
-/// the last row of a list — is above the gradient's zero stop and cannot be
-/// dimmed by it. Only content that scrolls into the reserved band fades, which
-/// is the only content that was ever a problem.
+/// The capsule can be fully clear, so a long list would print text through the
+/// tab labels. The gradient is exactly [navBarClearance] tall: anything a page
+/// already keeps clear of the bar sits above its first stop and stays sharp,
+/// and only what scrolls into the reserved band fades.
 ///
 /// Decorative and never hit-testable.
 class NavBarScrollEdge extends StatelessWidget {
@@ -62,32 +51,15 @@ class NavBarScrollEdge extends StatelessWidget {
 
 /// The floating Liquid Glass tab bar.
 ///
-/// Modelled on the iOS 26 tab bar: an inset capsule that hovers over the
-/// content rather than a full-width strip welded to the bottom edge. Glass
-/// belongs to the navigation layer only, so this widget and the sheets are the
-/// only places in the app that sample the backdrop.
+/// An inset capsule over the content, not a strip welded to the bottom, in the
+/// spirit of the iOS 26 tab bar. Glass only appears in the navigation layer:
+/// here and in sheets.
 ///
-/// ## What "Liquid Glass" means here
-///
-/// Apple's material is a private GPU pipeline: it *bends* light through a
-/// curved edge (lensing) instead of merely scattering it (blur). Flutter
-/// exposes no displacement filter, so the look is reconstructed from parts that
-/// do exist, and the result is an approximation rather than a port:
-///
-/// * **Body** — a real [BackdropFilter] blur, alpha-filled.
-/// * **Lens rim** — a ring band that re-samples the backdrop at a *lower* blur
-///   with boosted saturation and brightness. Sharper and brighter at the edge
-///   against a softer centre is the visual signature of light concentrating
-///   through a curve, and it is position-independent, unlike a matrix
-///   displacement, which would drift with the widget's screen offset.
-/// * **Chromatic split** — two hue-shifted arcs offset across the rim, the
-///   colour fringe a real lens leaves behind.
-/// * **Specular** — a catch of light along the top edge, and a shimmer that
-///   sweeps once when the selection changes.
-/// * **Illumination** — the touch point lights the glass from underneath.
-///
-/// Glass never samples other glass, so the active indicator is a fill, not a
-/// second backdrop layer.
+/// Apple's material bends light through a curved edge. Flutter has no
+/// displacement filter, so this is a reconstruction: a real backdrop blur for
+/// the body, a sharper and more saturated ring for the lens rim, two hue-shifted
+/// arcs for the chromatic fringe, a specular highlight, and a glow under the
+/// finger. Glass never samples glass, so the selection indicator is a fill.
 class LiquidGlassNavBar extends StatefulWidget {
   const LiquidGlassNavBar({
     required this.selectedIndex,
@@ -233,7 +205,7 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
     }
   }
 
-  // ── Geometry ──────────────────────────────────────────────────────────────
+  // Geometry
 
   double get _barHeight => 52.0 + (widget.barSize - 80) / 80 * 28.0;
 
@@ -350,7 +322,7 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
     );
   }
 
-  // ── The capsule ───────────────────────────────────────────────────────────
+  // The capsule
 
   Widget _buildCapsule({
     required BuildContext context,
@@ -480,7 +452,7 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
     }
   }
 
-  // ── Glass body ────────────────────────────────────────────────────────────
+  // Glass body
 
   /// Boosts saturation and brightness by [k]. The lens band uses this on its
   /// backdrop sample: light passing through a curved edge arrives denser and
@@ -726,7 +698,7 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
     );
   }
 
-  // ── Active indicator ──────────────────────────────────────────────────────
+  // Active indicator
 
   /// The selected slot. A fill, never a second [BackdropFilter]: glass does not
   /// sample glass, and stacking blur passes is what makes the effect turn to
@@ -795,7 +767,7 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
     );
   }
 
-  // ── Icons ─────────────────────────────────────────────────────────────────
+  // Icons
 
   Widget _buildIconRow(
     ColorScheme scheme,

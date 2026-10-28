@@ -56,7 +56,7 @@ class VoiceInputService {
 
     final fileSize = await File(path).length();
     if (fileSize < 1024) {
-      debugPrint('[VoiceInput] Recording too short (${fileSize} bytes)');
+      debugPrint('[VoiceInput] Recording too short ($fileSize bytes)');
       return null;
     }
 
@@ -89,7 +89,7 @@ class VoiceInputService {
   /// Transcribe an audio file using on-device Whisper.
   Future<String?> _transcribe(String audioPath) async {
     try {
-      final whisper = Whisper(
+      const whisper = Whisper(
         model: WhisperModel.tiny,
         downloadHost:
             'https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main',

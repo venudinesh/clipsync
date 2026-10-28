@@ -1,15 +1,12 @@
 // Which languages this PC can take dictation in.
 //
-// Windows keeps its speech recognisers in the registry, which is where SAPI itself
-// looks for them, so they can be listed without loading a speech assembly and
-// without a reference this build cannot resolve on a Windows 7 machine. Two places
-// hold them: the desktop engines every version has, and the newer OneCore engines
-// on Windows 10 and 11. Both are read, and a language installed twice is listed
-// once.
+// SAPI keeps its recognisers in the registry, so they can be listed without
+// loading a speech assembly, which this build can't reference on Windows 7.
+// There are two sets: the desktop engines every version has and the OneCore
+// engines on 10 and 11. A language installed twice is listed once.
 //
-// The stored setting is a culture name such as en-GB rather than an engine name,
-// because engine names differ between the two sets and a person choosing a
-// language should not have to care which engine answers.
+// The setting stores a culture name (en-GB) rather than an engine name, since
+// engine names differ between the two sets.
 
 using System;
 using System.Collections.Generic;

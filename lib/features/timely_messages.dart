@@ -39,7 +39,7 @@ enum DayPart {
 /// timestamp and to work out when the next change is due.
 const List<int> dayPartBoundaries = <int>[0, 5, 12, 17, 19, 22];
 
-// ── Messages ────────────────────────────────────────────────────────────────
+// Messages
 
 const List<String> _morningMessages = <String>[
   'Good morning!',
@@ -157,7 +157,7 @@ const List<String> _anyTimeMessages = <String>[
   'Enjoy your day!',
 ];
 
-// ── Selection ───────────────────────────────────────────────────────────────
+// Selection
 
 /// A greeting and its one liner, picked together so the pair is always
 /// consistent with the same instant.
@@ -316,7 +316,7 @@ DateTime nextDayPartBoundary(DateTime now) {
   return DateTime(now.year, now.month, now.day + 1);
 }
 
-// ── Widget ──────────────────────────────────────────────────────────────────
+// Widget
 
 /// Keeps a [TimelyGreeting] current and hands it to [builder].
 ///

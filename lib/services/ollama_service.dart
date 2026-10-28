@@ -12,10 +12,13 @@ class OllamaService {
   OllamaService({
     String baseUrl = 'http://127.0.0.1:11434',
     http.Client? client,
+    // Named parameters cannot be private, so the field cannot be an
+    // initializing formal while it still has a public name and a default.
+    // ignore: prefer_initializing_formals
   })  : _baseUrl = baseUrl,
         _client = client ?? http.Client();
 
-  // ── Configuration ──────────────────────────────────────────────────────
+  // Configuration
 
   String get baseUrl => _baseUrl;
   set baseUrl(String url) {
@@ -49,7 +52,7 @@ class OllamaService {
     }
   }
 
-  // ── Version ────────────────────────────────────────────────────────────
+  // Version
 
   /// GET / — returns the Ollama version
   Future<String?> getVersion() async {
@@ -65,7 +68,7 @@ class OllamaService {
     return null;
   }
 
-  // ── Health Check ───────────────────────────────────────────────────────
+  // Health Check
 
   /// Quick health check by hitting the tags endpoint
   Future<bool> isAlive() async {
@@ -79,7 +82,7 @@ class OllamaService {
     }
   }
 
-  // ── List Local Models ──────────────────────────────────────────────────
+  // List Local Models
 
   /// GET /api/tags — list all locally available models
   Future<OllamaTagsResponse> listModels() async {
@@ -87,7 +90,7 @@ class OllamaService {
     return OllamaTagsResponse.fromJson(resp);
   }
 
-  // ── Show Model Information ─────────────────────────────────────────────
+  // Show Model Information
 
   /// POST /api/show — get details about a model
   Future<OllamaShowResponse> showModel(String name) async {
@@ -95,7 +98,7 @@ class OllamaService {
     return OllamaShowResponse.fromJson(resp);
   }
 
-  // ── Pull a Model ───────────────────────────────────────────────────────
+  // Pull a Model
 
   /// POST /api/pull — download a model (streaming progress)
   /// Returns a stream of progress updates.
@@ -118,7 +121,7 @@ class OllamaService {
     }
   }
 
-  // ── Delete a Model ─────────────────────────────────────────────────────
+  // Delete a Model
 
   /// DELETE /api/delete — remove a local model
   Future<void> deleteModel(String name) async {
@@ -131,14 +134,14 @@ class OllamaService {
     }
   }
 
-  // ── Copy a Model ───────────────────────────────────────────────────────
+  // Copy a Model
 
   /// POST /api/copy — duplicate a model
   Future<void> copyModel(String source, String destination) async {
     await _post('/api/copy', {'source': source, 'destination': destination});
   }
 
-  // ── List Running Models ────────────────────────────────────────────────
+  // List Running Models
 
   /// GET /api/ps — list currently loaded models in memory
   Future<OllamaPsResponse> listRunning() async {
@@ -146,7 +149,7 @@ class OllamaService {
     return OllamaPsResponse.fromJson(resp);
   }
 
-  // ── Generate (non-streaming) ───────────────────────────────────────────
+  // Generate (non-streaming)
 
   /// POST /api/generate — generate a completion (non-streaming)
   Future<OllamaGenerateResponse> generate({
@@ -179,7 +182,7 @@ class OllamaService {
     return OllamaGenerateResponse.fromJson(resp);
   }
 
-  // ── Generate (streaming) ───────────────────────────────────────────────
+  // Generate (streaming)
 
   /// POST /api/generate — stream a completion token by token
   Stream<OllamaGenerateStreamChunk> generateStream({
@@ -225,7 +228,7 @@ class OllamaService {
     }
   }
 
-  // ── Chat (non-streaming) ──────────────────────────────────────────────
+  // Chat (non-streaming)
 
   /// POST /api/chat — chat completion (non-streaming)
   Future<OllamaChatResponse> chat({
@@ -248,7 +251,7 @@ class OllamaService {
     return OllamaChatResponse.fromJson(resp);
   }
 
-  // ── Chat (streaming) ──────────────────────────────────────────────────
+  // Chat (streaming)
 
   /// POST /api/chat — stream a chat completion
   Stream<OllamaChatStreamChunk> chatStream({
@@ -284,7 +287,7 @@ class OllamaService {
     }
   }
 
-  // ── Internal helpers ───────────────────────────────────────────────────
+  // Internal helpers
 
   Future<Map<String, dynamic>> _get(String path) async {
     final resp = await _client
@@ -315,9 +318,7 @@ class OllamaService {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // EXCEPTIONS
-// ─────────────────────────────────────────────────────────────────────────────
 
 class OllamaException implements Exception {
   final String message;
@@ -326,9 +327,7 @@ class OllamaException implements Exception {
   String toString() => 'OllamaException: $message';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DATA MODELS — Tags
-// ─────────────────────────────────────────────────────────────────────────────
 
 class OllamaTagsResponse {
   final List<OllamaModel> models;
@@ -414,9 +413,7 @@ class OllamaModelDetail {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DATA MODELS — Show
-// ─────────────────────────────────────────────────────────────────────────────
 
 class OllamaShowResponse {
   final String? modelfile;
@@ -447,9 +444,7 @@ class OllamaShowResponse {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DATA MODELS — Pull Progress
-// ─────────────────────────────────────────────────────────────────────────────
 
 class OllamaPullProgress {
   final String? status;
@@ -472,9 +467,7 @@ class OllamaPullProgress {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DATA MODELS — Running Models
-// ─────────────────────────────────────────────────────────────────────────────
 
 class OllamaPsResponse {
   final List<OllamaRunningModel> models;
@@ -521,9 +514,7 @@ class OllamaRunningModel {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DATA MODELS — Generate
-// ─────────────────────────────────────────────────────────────────────────────
 
 class OllamaGenerateResponse {
   final String model;
@@ -577,9 +568,7 @@ class OllamaGenerateStreamChunk {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DATA MODELS — Chat
-// ─────────────────────────────────────────────────────────────────────────────
 
 class OllamaMessage {
   final String role;

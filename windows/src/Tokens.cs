@@ -10,7 +10,7 @@ using System.Drawing;
 
 namespace ClipSyncAI
 {
-    // ── MOTION ──────────────────────────────────────────────────────────────
+    // MOTION
     //
     // Durations in milliseconds. The house curve leaves heavy and glides to a
     // stop; on GDI+ it is sampled by Ease.Glass rather than handed to a
@@ -71,7 +71,7 @@ namespace ClipSyncAI
         public static double Fade(double t) { return Bezier(t, 0.4, 0, 0.2, 1); }
     }
 
-    // ── SHAPE ───────────────────────────────────────────────────────────────
+    // SHAPE
     //
     // Radii step down as elements nest. Derive an inner value with Radii.Core
     // so the curves stay parallel; that concentricity is what makes nested

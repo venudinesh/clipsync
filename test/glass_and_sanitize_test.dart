@@ -55,9 +55,9 @@ void main() {
             brightness: dark ? Brightness.dark : Brightness.light,
           ),
         ),
-        home: Scaffold(
+        home: const Scaffold(
           body: GlassPanel(
-            child: const SizedBox(width: 100, height: 100),
+            child: SizedBox(width: 100, height: 100),
           ),
         ),
       );

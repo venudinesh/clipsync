@@ -190,7 +190,7 @@ void main() {
   group('Combined Patterns', () {
     test('complex multiline input', () {
       final processor = OllamaClipProcessor();
-      final input = '''# Meeting Notes
+      const input = '''# Meeting Notes
 - [ ] Prepare slides
 - [x] Book room
 

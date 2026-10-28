@@ -1,9 +1,12 @@
 #!/bin/sh
 # Builds ClipSyncAI for Windows: the tests first, then both executables.
 #
-# No SDK, no NuGet, no MSBuild. The only tool used is the C# compiler that ships
-# inside Windows itself, so this runs on a machine with nothing installed beyond
-# the .NET Framework that Windows already has. Nothing is downloaded.
+# No SDK, no NuGet, no MSBuild. By default the only tool used is the C#
+# compiler that ships inside Windows itself, so this runs on a machine with
+# nothing installed beyond the .NET Framework that Windows already has.
+# Nothing is downloaded. That compiler only speaks C# 5: set CSC to a Roslyn
+# csc.exe to build the same sources with C# 7.3. The target stays .NET
+# Framework 4.0 either way.
 #
 # Usage:  ./build.sh          tests, then x86 and x64
 #         ./build.sh tests    tests only
@@ -14,22 +17,33 @@ cd "$(dirname "$0")"
 
 what="${1:-all}"
 
-csc=""
-for c in \
-    "/c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe" \
-    "/c/Windows/Microsoft.NET/Framework/v4.0.30319/csc.exe"
-do
-    if [ -x "$c" ]; then csc="$c"; break; fi
-done
-if [ -z "$csc" ]; then
-    echo "No C# compiler found under C:\\Windows\\Microsoft.NET" >&2
-    echo "The .NET Framework 4 is missing. It ships with Windows 8 and later," >&2
-    echo "and is a free download for Windows 7." >&2
-    exit 1
+langver=5
+csc="${CSC:-}"
+if [ -n "$csc" ]; then
+    if [ ! -f "$csc" ]; then
+        echo "CSC points at \"$csc\", which does not exist." >&2
+        exit 1
+    fi
+    langver=7.3
+else
+    for c in \
+        "/c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe" \
+        "/c/Windows/Microsoft.NET/Framework/v4.0.30319/csc.exe"
+    do
+        if [ -x "$c" ]; then csc="$c"; break; fi
+    done
+    if [ -z "$csc" ]; then
+        echo "No C# compiler found under C:\\Windows\\Microsoft.NET" >&2
+        echo "The .NET Framework 4 is missing. It ships with Windows 8 and later," >&2
+        echo "and is a free download for Windows 7." >&2
+        exit 1
+    fi
 fi
 
 refs="-r:System.dll -r:System.Core.dll -r:System.Drawing.dll -r:System.Security.dll -r:System.Windows.Forms.dll"
-opts="-nologo -codepage:65001 -optimize+ -warn:4"
+opts="-nologo -codepage:65001 -optimize+ -warn:4 -langversion:$langver"
+
+echo "using C# $langver: $csc"
 
 mkdir -p build
 

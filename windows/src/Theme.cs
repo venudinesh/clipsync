@@ -105,7 +105,7 @@ namespace ClipSyncAI
             get { return A11y.ReadableOn(Accent); }
         }
 
-        // ── Type ────────────────────────────────────────────────────────────
+        // Type
         //
         // Segoe UI is the platform face on every Windows this app supports, and
         // matching the shell is the right call for an app that lives in the

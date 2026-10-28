@@ -1,17 +1,13 @@
 // The embedded engine: llama.cpp running in this process.
 //
-// The phone build loads a GGUF file into llama.cpp and this is the desktop
-// equivalent — the runtime DLLs are carried inside the executable and extracted
-// on first use (see NativeLoader), so a model can be chosen and run directly
-// from inside the app with nothing else installed. Like the phone build it is
-// CPU-only and single sequence: requests are serialised on one context, which
-// is all a clipboard reformat or a chat turn needs.
+// The desktop equivalent of the phone build. The runtime DLLs ride inside the
+// executable and are extracted on first use (see NativeLoader), so a model can
+// run with nothing else installed. CPU-only and single sequence: requests are
+// serialised on one context, which is all a reformat or a chat turn needs.
 //
-// Generation is a classic prompt/loop: tokenise, decode the prompt, then sample
-// one token at a time until the model says it is finished or the budget runs
-// out. The sampler chain is built per call so the temperature and top_p the
-// caller chose are actually honoured; a temperature of zero falls back to a
-// greedy pick.
+// Generation is the usual loop: tokenise, decode the prompt, then sample one
+// token at a time until the model finishes or the budget runs out. The sampler
+// chain is rebuilt per call so temperature and top_p are actually honoured.
 
 using System;
 using System.Collections.Generic;

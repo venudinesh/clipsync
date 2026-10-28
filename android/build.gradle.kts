@@ -17,11 +17,14 @@ subprojects {
 }
 
 subprojects {
-    afterEvaluate {
-        val androidExt = extensions.findByName("android")
-        when (androidExt) {
-            is com.android.build.api.dsl.LibraryExtension -> androidExt.compileSdk = 36
-            is com.android.build.api.dsl.ApplicationExtension -> androidExt.compileSdk = 36
+    plugins.withId("com.android.library") {
+        extensions.configure<com.android.build.api.dsl.LibraryExtension> {
+            compileSdk = 36
+        }
+    }
+    plugins.withId("com.android.application") {
+        extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
+            compileSdk = 36
         }
     }
 }

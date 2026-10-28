@@ -30,7 +30,7 @@ class VoiceRecorderService {
   bool get isRecording => _isRecording;
   String? get outputPath => _outputPath;
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────
+  // Lifecycle
 
   Future<void> init() async {
     if (await _recorder.hasPermission()) {
@@ -44,7 +44,7 @@ class VoiceRecorderService {
     await _recorder.dispose();
   }
 
-  // ── Recording ─────────────────────────────────────────────────────────
+  // Recording
 
   /// Start recording into the app's temp directory.
   Future<void> startRecording() async {

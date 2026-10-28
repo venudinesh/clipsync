@@ -1,15 +1,12 @@
 // Notes: the page.
 //
-// The phone's notes screen, given a window. The masthead says nothing until a
-// search or a tag narrows the list, because a standing subtitle over a list you
-// can already see is furniture. Under it: how much you have written, a search
-// box with the sort control beside it, and the tags as a wrapping strip.
+// The phone's notes screen with a window around it. The masthead stays quiet
+// until a search or tag narrows the list. Below it: word count, search, sort,
+// and the tags as a wrapping strip.
 //
-// The editor is not a dialog. It is this same page with the list hidden and the
-// writing surface shown, because a sheet is capped at a readable column width
-// and a note being written wants the whole window. The rail stays visible, which
-// is one thing the desktop does better than the phone, where the editor covers
-// the navigation.
+// The editor is this same page with the list hidden, not a dialog, because a
+// sheet caps at a readable column and a note wants the whole window. The rail
+// stays visible, which is one place desktop beats the phone.
 
 using System;
 using System.Collections.Generic;

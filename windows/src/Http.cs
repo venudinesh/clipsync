@@ -171,7 +171,7 @@ namespace ClipSyncAI
             }
         }
 
-        // ── Remote-capable requests ─────────────────────────────────────────
+        // Remote-capable requests
         //
         // The two opt-in remote features — the cloud AI engine and the model
         // downloader — are the only code that may talk to a host that is not

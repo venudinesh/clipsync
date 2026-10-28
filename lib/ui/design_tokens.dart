@@ -7,9 +7,7 @@ import 'package:flutter/material.dart';
 /// the shape language and the easing locked together: one accent, one radius
 /// rule, one set of curves.
 
-// ─────────────────────────────────────────────────────────────────────────────
 // MOTION
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// The house curve. Leaves heavy, glides to a stop. Anything that moves a
 /// surface uses this: sheets, the nav indicator, panel reveals.
@@ -35,9 +33,7 @@ class Motion {
   static const Duration shimmer = Duration(milliseconds: 900);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SHAPE — one rule, applied everywhere
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Radii step down as elements nest. When one surface sits inside another,
 /// derive the inner value with [Radii.core] so the curves stay parallel; that
@@ -140,9 +136,7 @@ EdgeInsets snackBarMargin(BuildContext context) => EdgeInsets.fromLTRB(
     );
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PALETTE
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// A selectable accent. Every entry is deliberately under 80% saturation, so
 /// nothing in the palette can shout.
@@ -191,7 +185,7 @@ Color accentCompanion(Color accent) {
       .toColor();
 }
 
-// ── Surfaces ────────────────────────────────────────────────────────────────
+// Surfaces
 
 /// Dark surfaces. Off-black rather than `#000000`: pure black flattens depth,
 /// because a shadow cast onto it is invisible. True black stays reachable, but
@@ -230,9 +224,7 @@ class Semantic {
   static const Color info = Color(0xFF9DB4C8);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // GLASS
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Tuning constants for the glass approximation.
 ///
@@ -267,9 +259,7 @@ class Glass {
   static const Color aberrationCool = Color(0xFFA8C6FF);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ACCESSIBILITY
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// True when the platform asks for less motion. Above this, entry animations
 /// and ambient loops are skipped and transitions collapse to a cross-fade.

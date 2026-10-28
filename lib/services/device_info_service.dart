@@ -13,7 +13,7 @@ class DeviceInfoService {
   AndroidDeviceInfo? _androidInfo;
   DeviceProfile? _cachedInfo;
 
-  // ── Initialization ─────────────────────────────────────────────────────
+  // Initialization
 
   Future<void> init() async {
     if (Platform.isAndroid) {
@@ -22,7 +22,7 @@ class DeviceInfoService {
     _cachedInfo = await _gatherInfo();
   }
 
-  // ── Core Info ──────────────────────────────────────────────────────────
+  // Core Info
 
   DeviceProfile? get info => _cachedInfo;
 
@@ -53,7 +53,7 @@ class DeviceInfoService {
     );
   }
 
-  // ── RAM ────────────────────────────────────────────────────────────────
+  // RAM
 
   Future<int> _getTotalRamMB() async {
     try {
@@ -95,7 +95,7 @@ class DeviceInfoService {
     return _getTotalRamMB(); // Assume all available
   }
 
-  // ── CPU ────────────────────────────────────────────────────────────────
+  // CPU
 
   int _getCpuCores() {
     try {
@@ -116,12 +116,11 @@ class DeviceInfoService {
     return Platform.operatingSystem == 'android' ? 'arm64-v8a' : 'unknown';
   }
 
-  // ── Storage ────────────────────────────────────────────────────────────
+  // Storage
 
   Future<_StorageInfo> _getStorageInfo() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final stat = await dir.stat();
       // Approximate total from the mount point
       // On Android, we can read /proc/mounts but a simpler approach works
       final totalBytes = await _getTotalStorageBytes();
@@ -158,7 +157,6 @@ class DeviceInfoService {
 
   Future<int> _getAvailableStorageBytes(String path) async {
     try {
-      final dir = Directory(path);
       final total = await _getTotalStorageBytes();
       // Rough estimate: assume 40% available on typical device
       return (total * 0.4).toInt();
@@ -167,7 +165,7 @@ class DeviceInfoService {
     }
   }
 
-  // ── Screen ─────────────────────────────────────────────────────────────
+  // Screen
 
   _ScreenInfo _getScreenInfo() {
     final view = PlatformDispatcher.instance.views.first;
@@ -180,7 +178,7 @@ class DeviceInfoService {
     );
   }
 
-  // ── GPU ────────────────────────────────────────────────────────────────
+  // GPU
 
   String _getGpuInfo() {
     try {
@@ -195,9 +193,7 @@ class DeviceInfoService {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DATA MODELS
-// ─────────────────────────────────────────────────────────────────────────────
 
 class DeviceProfile {
   final int totalRamMB;

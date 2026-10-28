@@ -1,0 +1,87 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    name: Flutter (analyze + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.8'
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        run: flutter test
+
+  android:
+    name: Android (build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.8'
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Build APK
+        run: flutter build apk --debug
+
+  windows:
+    name: Windows (native build + tests)
+    runs-on: windows-latest
+    env:
+      WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+      WINDOWS_PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The shipping path: the compiler inside Windows, C# 5, nothing installed.
+      - name: Build and test with the in-box compiler
+        working-directory: windows
+        shell: cmd
+        run: build.cmd
+
+      # The same sources through Roslyn, which is the language level the
+      # project file asks for.
+      - name: Test with Roslyn at C# 7.3
+        working-directory: windows
+        shell: cmd
+        run: |
+          set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+          if not exist "%VSWHERE%" (
+            echo vswhere.exe was not found; windows-latest should have it.
+            exit /b 1
+          )
+          for /f "usebackq delims=" %%I in (`"%VSWHERE%" -latest -products * -find "MSBuild\**\Bin\Roslyn\csc.exe"`) do set "CSC=%%I"
+          if not defined CSC (
+            echo No Roslyn csc.exe was found.
+            exit /b 1
+          )
+          build.cmd tests
+
+      # No-op unless WINDOWS_PFX_BASE64 and WINDOWS_PFX_PASSWORD are set.
+      - name: Sign executables
+        if: env.WINDOWS_PFX_BASE64 != ''
+        working-directory: windows
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\clipsync.pfx", [Convert]::FromBase64String($env:WINDOWS_PFX_BASE64))
+          $env:CLIPSYNC_PFX = "$env:RUNNER_TEMP\clipsync.pfx"
+          $env:CLIPSYNC_PFX_PASSWORD = $env:WINDOWS_PFX_PASSWORD
+          cmd /c "sign.cmd build\ClipSyncAI-x86.exe build\ClipSyncAI-x64.exe"

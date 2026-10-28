@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive_ce_flutter/hive_flutter.dart';
 
 /// Manages encryption keys for Hive boxes using Android Keystore /
 /// iOS Keychain via flutter_secure_storage.
@@ -28,13 +27,15 @@ class SecureStorageService {
   SecureStorageService({FlutterSecureStorage? secureStorage})
       : _secureStorage = secureStorage ??
             const FlutterSecureStorage(
-              aOptions: AndroidOptions(encryptedSharedPreferences: true),
+              // v10 migrates keys written by v9's EncryptedSharedPreferences
+              // backend on first access. Do not jump to v11 in one step: v11
+              // removed that migration and would orphan every existing key.
               iOptions: IOSOptions(
                 accessibility: KeychainAccessibility.first_unlock_this_device,
               ),
             );
 
-  // ── Key Management ──────────────────────────────────────────────────────
+  // Key Management
 
   /// Retrieve an existing key or generate + persist a new one.
   Future<Uint8List> _getOrCreateKey(String label) async {
@@ -66,7 +67,7 @@ class SecureStorageService {
   Future<Uint8List> get settingsKey => _getOrCreateKey(_settingsKeyLabel);
   Future<Uint8List> get chatKey => _getOrCreateKey(_chatKeyLabel);
 
-  // ── Box Helpers ─────────────────────────────────────────────────────────
+  // Box Helpers
 
   /// Open an encrypted Hive box.
   Future<Box<T>> openEncryptedBox<T>(String name, Uint8List key) async {
@@ -151,7 +152,7 @@ class SecureStorageService {
     return Map.fromEntries(results);
   }
 
-  // ── Diagnostics ─────────────────────────────────────────────────────────
+  // Diagnostics
 
   /// Check if encryption keys already exist (i.e., first-run detection).
   Future<bool> get isInitialized async {

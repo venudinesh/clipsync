@@ -8,9 +8,9 @@ import 'package:flutter/foundation.dart'
     show kDebugMode, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -32,9 +32,7 @@ import 'features/chat_history.dart';
 import 'features/timely_messages.dart';
 import 'onboarding/onboarding_gate.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS & THEME
-// ─────────────────────────────────────────────────────────────────────────────
 
 class AppColors {
   AppColors._();
@@ -323,9 +321,7 @@ class NavBarConfig {
 
 const _uuid = Uuid();
 
-// ─────────────────────────────────────────────────────────────────────────────
 // MODELS
-// ─────────────────────────────────────────────────────────────────────────────
 
 class ClipEntry {
   final String id;
@@ -584,9 +580,7 @@ ClipEntry joinClips(Iterable<ClipEntry> clips) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SMART CAPTURE — similarity, ranking, titles, retention, auto-redact
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Words that carry no meaning for search or tags. The desktop build carries
 /// the same list, so both ends agree on what a tag can be.
@@ -830,7 +824,7 @@ Future<int> purgeExpiredClips() async {
     if (val is! Map) continue;
     try {
       final entry =
-          ClipEntry.fromMap(Map<String, dynamic>.from(val as Map));
+          ClipEntry.fromMap(Map<String, dynamic>.from(val));
       // Pinned clips are never the ones dropped: pinning is the user saying
       // keep this, and a lifetime setting must not overrule it.
       if (!entry.isPinned && entry.timestamp.isBefore(cutoff)) {
@@ -952,28 +946,24 @@ class Note {
       );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // OLLAMA CLIP PROCESSOR  – REST + Regex Fallback
-// ─────────────────────────────────────────────────────────────────────────────
 
 class OllamaClipProcessor {
   final OnDeviceLlmService _llm;
-  String _activeModel = AppDefaults.defaultModel;
   bool _modelLoaded = false;
   String? _loadedModelPath;
 
   OllamaClipProcessor({OnDeviceLlmService? llm})
       : _llm = llm ?? OnDeviceLlmService();
 
-  // ── Public getters ────────────────────────────────────────────────────
-  String get activeModel => _activeModel;
-  set activeModel(String v) => _activeModel = v;
+  // Public getters
+  String activeModel = AppDefaults.defaultModel;
   bool get ollamaAvailable => _modelLoaded;
   bool get modelLoaded => _modelLoaded;
   String? get loadedModelPath => _loadedModelPath;
   OnDeviceLlmService get llm => _llm;
 
-  // ── Model Lifecycle ─────────────────────────────────────────────────
+  // Model Lifecycle
 
   /// Loads a GGUF model file for on-device inference.
   Future<bool> loadModel(String modelPath, {String? modelId}) async {
@@ -981,7 +971,7 @@ class OllamaClipProcessor {
       await _llm.loadModel(modelPath, modelId: modelId);
       _modelLoaded = true;
       _loadedModelPath = modelPath;
-      if (modelId != null) _activeModel = modelId;
+      if (modelId != null) activeModel = modelId;
       return true;
     } catch (e) {
       _modelLoaded = false;
@@ -1022,7 +1012,7 @@ class OllamaClipProcessor {
     return _llm.listDownloadedModels();
   }
 
-  // ── Main Processing Pipeline ──────────────────────────────────────────
+  // Main Processing Pipeline
 
   /// Main processing entry — uses on-device llama.cpp, falls back to regex.
   Future<String> process(String rawText) async {
@@ -1065,7 +1055,7 @@ class OllamaClipProcessor {
     if (_modelLoaded) {
       try {
         final messages = history ?? [];
-        messages.add(ChatMessage(role: 'system', content: _systemPrompt));
+        messages.add(const ChatMessage(role: 'system', content: _systemPrompt));
         messages.add(ChatMessage(role: 'user', content: _buildPrompt(rawText)));
 
         final buffer = StringBuffer();
@@ -1105,7 +1095,7 @@ class OllamaClipProcessor {
     yield _processWithRegex(rawText);
   }
 
-  // ── On-Device LLM Integration ────────────────────────────────────────
+  // On-Device LLM Integration
 
   Future<String> _processWithLlm(String rawText) async {
     final prompt = _buildPrompt(rawText);
@@ -1219,7 +1209,7 @@ $rawText''';
   String _linkifyUrls(String text) {
     // Matches http(s)://... or www... URLs, stopping at whitespace, angle brackets, or quotes
     final urlRegExp = RegExp(
-      '(https?://[^ <>"' + "'" + ']+|www\.[^ <>"' + "'" + ']+)',
+      "(https?://[^ <>\"']+|www\\.[^ <>\"']+)",
       caseSensitive: false,
     );
     return text.replaceAllMapped(urlRegExp, (match) {
@@ -1266,9 +1256,7 @@ $rawText''';
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // MAIN APP
-// ─────────────────────────────────────────────────────────────────────────────
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1669,9 +1657,7 @@ class ClipSyncApp extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // APP SHELL – Bottom Navigation & Page View
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Set by a page that has opened a sub view *in place* rather than by pushing a
 /// route, for as long as that view is open.
@@ -1703,13 +1689,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   final _processor = OllamaClipProcessor();
   final _aiConnection = AiConnectionService();
   final _imagePicker = ImagePicker();
-  NavBarConfig _navConfig = NavBarConfig();
+  NavBarConfig _navConfig = const NavBarConfig();
 
   // Header scroll state
   final ValueNotifier<double> _headerScrollOffset = ValueNotifier(0.0);
 
   // Theme state
-  ThemeMode _themeMode = ThemeMode.dark;
   bool _amoledMode = false;
   Color _accentColor = AppColors.primaryAccent;
 
@@ -1838,8 +1823,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _loadThemeSettings() {
     final settings = Hive.box(AppDefaults.hiveSettingsBox);
-    final mode = settings.get(AppDefaults.themeModeKey, defaultValue: 'dark') as String;
-    _themeMode = mode == 'light' ? ThemeMode.light : mode == 'system' ? ThemeMode.system : ThemeMode.dark;
     _amoledMode = settings.get(AppDefaults.amoledKey, defaultValue: false) as bool;
     appAmoledMode.value = _amoledMode;
     appGlassMode.value = settings.get(AppDefaults.glassModeKey, defaultValue: false) as bool;
@@ -2015,9 +1998,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     // Canonical tab order. The PageView always keeps this order so a
     // reordered nav bar can never move, hide or lose a feature; only the
     // strip of buttons is permuted.
-    final tabLabels = kNavTabLabels;
-    final tabIcons = kNavTabIcons;
-    final tabSelectedIcons = kNavTabSelectedIcons;
+    const tabLabels = kNavTabLabels;
+    const tabIcons = kNavTabIcons;
+    const tabSelectedIcons = kNavTabSelectedIcons;
     final navOrder = _navConfig.resolvedOrder(tabLabels.length);
     final selectedSlot = navOrder.indexOf(_currentIndex).clamp(0, navOrder.length - 1);
     // Measured *here*, above the Scaffold, on purpose. Scaffold hands its body a
@@ -2055,7 +2038,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           child: Stack(
             children: [
             const GlassBackdrop(),
-            // ─── Content (header is now inside each view, scrolling with content) ──
+            // ─ Content (header is now inside each view, scrolling with content)
             // No SafeArea here on purpose. Every page is handed the whole
             // screen and pads itself out of the system bars, which is the only
             // way content can scroll *under* the status bar and the floating
@@ -2106,7 +2089,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 ],
               ),
             ),
-            // ─── Bottom tab bar ────────────────────────────────
+            // ─ Bottom tab bar
             // The content fade goes first so it sits under the capsule and over
             // the page. It is skipped with the keyboard, along with the bar it
             // exists for.
@@ -2311,9 +2294,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD VIEW
-// ─────────────────────────────────────────────────────────────────────────────
 
 class DashboardView extends StatefulWidget {
   final OllamaClipProcessor processor;
@@ -2851,7 +2832,7 @@ class _DashboardViewState extends State<DashboardView>
         navBarClearance(context),
       ),
       children: [
-        // ── The head of the page. The greeting in the accent, the app as the
+        // The head of the page. The greeting in the accent, the app as the
         // owner of the screen, the timely line as a pull quote, and the mark
         // set opposite them. Split, not a centred stack.
         Entrance(
@@ -2865,7 +2846,7 @@ class _DashboardViewState extends State<DashboardView>
           ),
         ),
 
-        // ── What the page holds, as figures. A number set large carries more
+        // What the page holds, as figures. A number set large carries more
         // than a row reading "Total clips   14", and it lands second in the
         // reading order instead of tenth. Nothing to count, nothing drawn.
         if (entries.isNotEmpty) ...[
@@ -2884,11 +2865,11 @@ class _DashboardViewState extends State<DashboardView>
         ],
         const SizedBox(height: Space.xl),
 
-        // ── Capture. The thing this screen exists for, so it gets the one
+        // Capture. The thing this screen exists for, so it gets the one
         // elevated surface on the page, and the accent edge while it is live.
         Entrance(index: 2, child: _capturePanel()),
 
-        // ── Compose. A recessed instrument, not a third underlined row. This
+        // Compose. A recessed instrument, not a third underlined row. This
         // is the one place on the page you type into, and it should not look
         // like the setting above it.
         const SizedBox(height: Space.lg + 2),
@@ -2916,7 +2897,7 @@ class _DashboardViewState extends State<DashboardView>
             ],
           ),
         ),
-        // ── The feed. The page's one group name, with the bulk verb on its own
+        // The feed. The page's one group name, with the bulk verb on its own
         // rule rather than as a third button under the field. The count lives
         // in the readout above, so it is not printed twice.
         Entrance(
@@ -2963,7 +2944,7 @@ class _DashboardViewState extends State<DashboardView>
         if (_isProcessing) _pendingEntry(),
         if (visible.isEmpty)
           visible.length != entries.length
-              ? StateBlock(
+              ? const StateBlock(
                   compact: true,
                   icon: Icons.search_off_rounded,
                   title: 'No match',
@@ -3167,18 +3148,11 @@ class _DashboardViewState extends State<DashboardView>
     );
   }
 
-  /// A clip as a margin entry: when it arrived in the margin, one vertical
-  /// rule, then what it says. No plate, and no rule underneath either — twenty
-  /// clips used to draw twenty full-width horizontals, which is the flattest a
-  /// list can be.
+  /// A clip as a margin entry: when it arrived, one vertical rule, then the
+  /// text. No plate and no rule underneath. The original is shown only when the
+  /// formatter actually changed something.
   ///
-  /// The original is printed only where the formatter actually changed
-  /// something. It used to be printed always, so a clip that came through
-  /// untouched showed the same sentence twice, once in full and once dimmed.
-  ///
-  /// Three gestures, the same three the notes feed answers: tap reads the clip,
-  /// hold gives it its actions, and dragging it aside pins or deletes it without
-  /// opening anything.
+  /// Tap reads, hold opens the actions, drag aside pins or deletes.
   Widget _buildClipRow(ClipEntry entry) {
     final raw = entry.rawText.replaceAll(RegExp(r'\s+'), ' ').trim();
     final result = entry.processedMarkdown.trim();
@@ -3397,22 +3371,18 @@ class _DashboardViewState extends State<DashboardView>
 
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // CLIP READER
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// A clip at full length, on its own screen.
 ///
-/// The feed can only ever show the first few lines of anything, so tapping a row
-/// used to open a menu — six verbs about a clip you had not read yet. This reads
-/// it instead: the formatted text at reading size and selectable, the original
-/// underneath where the formatter changed something, and nothing else on the
-/// page competing for the eye.
+/// The feed only shows the first few lines, so tapping used to open a menu about
+/// a clip you hadn't read. This reads it instead: selectable text at reading
+/// size, the original underneath when the formatter changed something, and
+/// nothing else on the page.
 ///
-/// It holds ids rather than clips, and looks each one up in the box as it draws,
-/// so a summary written from the sheet appears here without the reader knowing
-/// anything about who wrote it. The order is frozen at the moment it opens:
-/// pinning a clip you are reading should not slide the page under your thumb.
+/// It holds ids and looks each clip up as it draws, so a summary written
+/// elsewhere appears here. The order is frozen when it opens, so pinning a clip
+/// doesn't slide the page under your thumb.
 class ClipReader extends StatefulWidget {
   const ClipReader({
     required this.ids,
@@ -3468,19 +3438,14 @@ class _ClipReaderState extends State<ClipReader> {
     Navigator.of(context).maybePop();
   }
 
-  /// Dragging the reader down past the top of the text puts it away, which is
-  /// what the phone's own reading surfaces do, and it costs no second drag
-  /// recogniser competing with the one that scrolls the text.
+  /// Dragging down past the top of the text closes the reader, the way the
+  /// phone's own reading surfaces behave, without adding a second drag
+  /// recogniser.
   ///
-  /// The distance is read straight off the metrics. Bouncing physics never
-  /// reports an [OverscrollNotification] at all — it lets the position travel
-  /// out of range and calls that an ordinary scroll update — so counting
-  /// overscroll here would mean the gesture never fires on a phone, which is
-  /// exactly what it did until this was measured on one.
-  ///
-  /// Only a drag counts: the spring back after a fling crosses the top edge too,
-  /// and that is not a request to leave. And only the vertical axis, because the
-  /// reader's own sideways paging reports scroll through here as well.
+  /// The distance comes from the metrics, not from [OverscrollNotification]:
+  /// bouncing physics never sends one, it just lets the position leave its
+  /// range. Only a real drag counts, because a fling's spring-back isn't a
+  /// request to leave, and only on the vertical axis.
   bool _onScroll(ScrollNotification n) {
     if (n.metrics.axis != Axis.vertical) return false;
     if (n is ScrollUpdateNotification && n.dragDetails != null) {
@@ -3678,9 +3643,7 @@ class _ClipReaderState extends State<ClipReader> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NOTES SUITE VIEW
-// ─────────────────────────────────────────────────────────────────────────────
 
 class NotesView extends StatefulWidget {
   final OllamaClipProcessor processor;
@@ -4634,9 +4597,7 @@ class _NotesViewState extends State<NotesView>
 
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // OCR / VOICE VIEW
-// ─────────────────────────────────────────────────────────────────────────────
 
 class OcrVoiceView extends StatefulWidget {
   final OllamaClipProcessor processor;
@@ -4655,16 +4616,16 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
     with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
-  // ── Mode toggle ──────────────────────────────────────────────────────
+  // Mode toggle
   int _mode = 0; // 0 = OCR, 1 = Voice
   late final TabController _tabController;
 
-  // ── OCR state ─────────────────────────────────────────────────────────
+  // OCR state
   String _extractedText = '';
   bool _isProcessing = false;
   File? _selectedImage;
 
-  // ── Voice state ───────────────────────────────────────────────────────
+  // Voice state
   final _voiceRecorder = VoiceRecorderService();
   bool _isRecording = false;
   double _currentAmplitude = 0.0;
@@ -4674,7 +4635,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
   Timer? _recordingTimer;
   int _recordingSeconds = 0;
 
-  // ── Result editing / AI state ────────────────────────────────────────
+  // Result editing / AI state
   /// Which result panel is in edit mode: 'ocr', 'voice', or null for neither.
   /// Recognition is never perfect, so the text is correctable before it is
   /// saved anywhere.
@@ -4704,7 +4665,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
     super.dispose();
   }
 
-  // ── OCR Methods ───────────────────────────────────────────────────────
+  // OCR Methods
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -4744,7 +4705,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Text recognition is not available on this platform'),
+            content: Text("Text recognition isn't available on this device"),
           ),
         );
       }
@@ -4789,7 +4750,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
     }
   }
 
-  // ── Voice Recording Methods ───────────────────────────────────────────
+  // Voice Recording Methods
 
   Future<void> _toggleRecording() async {
     if (_isRecording) {
@@ -4806,7 +4767,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Voice transcription is not available on Linux yet'),
+            content: Text("Voice transcription isn't on Linux yet"),
           ),
         );
       }
@@ -4976,7 +4937,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
     );
   }
 
-  // ── Result actions ────────────────────────────────────────────────────
+  // Result actions
 
   /// One-line feedback, with an optional single-step undo.
   void _toast(String message, {VoidCallback? undo}) {
@@ -5088,7 +5049,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
     await _performOCR(image);
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────
+  // Build
 
   @override
   Widget build(BuildContext context) {
@@ -5133,7 +5094,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
     );
   }
 
-  // ── OCR Tab ───────────────────────────────────────────────────────────
+  // OCR Tab
 
   Widget _buildOcrTab() {
     final blank =
@@ -5267,7 +5228,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
     );
   }
 
-  // ── Voice Tab ─────────────────────────────────────────────────────────
+  // Voice Tab
 
   Widget _buildVoiceTab() {
     return Column(
@@ -5417,7 +5378,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
     );
   }
 
-  // ── Shared UI Components ──────────────────────────────────────────────
+  // Shared UI Components
 
   Widget _buildWaveform() {
     final accent = accentOn(context, minRatio: 3);
@@ -5618,9 +5579,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SETTINGS VIEW
-// ─────────────────────────────────────────────────────────────────────────────
 
 class SettingsView extends StatefulWidget {
   final OllamaClipProcessor processor;
@@ -5736,10 +5695,10 @@ class _SettingsViewState extends State<SettingsView>
             const SizedBox(height: Space.sm),
             Text(
               isLoaded
-                  ? 'It is loaded right now, so it will be unloaded first. The '
-                      'file is removed from this phone and cannot be recovered.'
-                  : 'The file is removed from this phone and cannot be '
-                      'recovered. You can download it again later.',
+                  ? "It's loaded right now, so it'll be unloaded first. The "
+                      "file is deleted from this phone and you can't get it back."
+                  : "The file is deleted from this phone and you can't get it "
+                      'back. You can download it again later.',
               style: DefaultTextStyle.of(ctx).style,
             ),
           ],
@@ -5788,7 +5747,7 @@ class _SettingsViewState extends State<SettingsView>
     try {
       FilePickerResult? result;
       try {
-        result = await FilePicker.platform.pickFiles(
+        result = await FilePicker.pickFiles(
           type: FileType.custom,
           allowedExtensions: ['gguf'],
           dialogTitle: 'Select a GGUF model file',
@@ -5797,7 +5756,7 @@ class _SettingsViewState extends State<SettingsView>
         // Android doesn't recognize '.gguf' in its MIME/extension mapping and
         // throws "Unsupported filter". Fall back to any-file so the user can
         // still pick a GGUF from storage.
-        result = await FilePicker.platform.pickFiles(
+        result = await FilePicker.pickFiles(
           type: FileType.any,
           dialogTitle: 'Select a GGUF model file',
         );
@@ -5976,7 +5935,7 @@ class _SettingsViewState extends State<SettingsView>
     final ok = await _confirmWipe(
       title: 'Clear clip history?',
       message: '$count ${count == 1 ? 'clip' : 'clips'} will be deleted, '
-          'including pinned ones. This cannot be undone.',
+          "including pinned ones. You can't undo this.",
       confirmLabel: 'Clear clips',
     );
     if (!ok) return;
@@ -6022,7 +5981,7 @@ class _SettingsViewState extends State<SettingsView>
       title: 'Clear chat history?',
       message: '$count ${count == 1 ? 'conversation' : 'conversations'} will '
           'be deleted. The chat open right now stays on screen until you leave '
-          'it. This cannot be undone.',
+          "it. You can't undo this.",
       confirmLabel: 'Clear chats',
     );
     if (!ok) return;
@@ -6037,7 +5996,7 @@ class _SettingsViewState extends State<SettingsView>
     if (mounted) setState(() {});
   }
 
-  // ── Export ────────────────────────────────────────────────────────────
+  // Export
 
   /// Builds one markdown document holding everything stored locally: clips,
   /// notes and saved chats. Plain markdown rather than a private format, so a
@@ -6051,7 +6010,7 @@ class _SettingsViewState extends State<SettingsView>
       ..writeln('Exported $stamp. Everything below came off this device only.')
       ..writeln();
 
-    // ── Clips ──
+    // Clips
     final clips = <ClipEntry>[];
     for (final v in Hive.box(AppDefaults.hiveClipBox).values) {
       if (v is Map) {
@@ -6083,7 +6042,7 @@ class _SettingsViewState extends State<SettingsView>
       }
     }
 
-    // ── Notes ──
+    // Notes
     final notes = <Note>[];
     for (final v in Hive.box(AppDefaults.hiveNoteBox).values) {
       if (v is Map) {
@@ -6111,7 +6070,7 @@ class _SettingsViewState extends State<SettingsView>
       out.writeln();
     }
 
-    // ── Chats ──
+    // Chats
     final sessions = ChatStore.instance?.all() ?? const <ChatSession>[];
     out.writeln('## Chats (${sessions.length})');
     out.writeln();
@@ -6141,7 +6100,7 @@ class _SettingsViewState extends State<SettingsView>
       final bytes = Uint8List.fromList(utf8.encode(markdown));
       final name =
           'clipsyncai-export-${DateFormat('yyyyMMdd-HHmm').format(DateTime.now())}.md';
-      final saved = await FilePicker.platform.saveFile(
+      final saved = await FilePicker.saveFile(
         dialogTitle: 'Save ClipSyncAI export',
         fileName: name,
         bytes: bytes,
@@ -6561,7 +6520,7 @@ class _SettingsViewState extends State<SettingsView>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   DropdownButtonFormField<AiProvider>(
-                    value: provider,
+                    initialValue: provider,
                     decoration: const InputDecoration(labelText: 'Provider'),
                     items: [
                       for (final option in AiProvider.values)
@@ -6917,7 +6876,7 @@ class _SettingsViewState extends State<SettingsView>
       _buildThemeModeOption('Follow system', 'system', currentMode, settings),
       _buildAmoledRow(isAmoled, settings),
 
-      // ── Surface style: Material or Liquid Glass ──
+      // Surface style: Material or Liquid Glass
       const _SectionLabel('SURFACE STYLE'),
       const SizedBox(height: Space.sm),
       GlassPanel(
@@ -6962,16 +6921,16 @@ class _SettingsViewState extends State<SettingsView>
       ),
       const SizedBox(height: Space.xl),
 
-      // ── Accent ──
+      // Accent
       const SectionHeader('Accent'),
       _buildAccentGrid(currentAccent, settings),
 
-      // ── Navigation order ──
+      // Navigation order
       const _SectionLabel('NAVIGATION LAYOUT'),
       const SizedBox(height: Space.sm),
       _buildNavOrderCard(),
 
-      // ── The glass card from the spec ──
+      // The glass card from the spec
       const _SectionLabel('LIQUID GLASS'),
       const SizedBox(height: Space.sm),
       _buildNavBarSettingsPanel(),
@@ -7027,7 +6986,7 @@ class _SettingsViewState extends State<SettingsView>
     );
   }
 
-  // ── Shared rows for the Themes & UI tab ─────────────────────────────
+  // Shared rows for the Themes & UI tab
 
   /// AMOLED is the only route to a true `#000000` canvas. Everywhere else the
   /// dark surface is off-black so that shadows and rim light still register.
@@ -7291,7 +7250,7 @@ class _SettingsViewState extends State<SettingsView>
     );
   }
 
-  // ── Preview and navigation layout ───────────────────────────────────
+  // Preview and navigation layout
 
   /// Shows the text ranks and the semantic palette on the real surface, so a
   /// theme choice can be judged without leaving the page.
@@ -8070,7 +8029,7 @@ class _SettingsViewState extends State<SettingsView>
     );
   }
 
-  // ── Liquid Glass Nav Bar Settings ──────────────────────────────────
+  // Liquid Glass Nav Bar Settings
 
   void _updateNavConfig(NavBarConfig Function(NavBarConfig) updater) {
     setState(() => _navCfg = updater(_navCfg));
@@ -8725,7 +8684,7 @@ class _SettingsViewState extends State<SettingsView>
     );
   }
 
-  // ── Device Info Panel ───────────────────────────────────────────────
+  // Device Info Panel
 
   Widget _buildDeviceInfoPanel() {
     final svc = DeviceInfoService();
@@ -8874,9 +8833,7 @@ class _PreviewBackdropPainter extends CustomPainter {
       old.warm != warm || old.cool != cool || old.dark != dark;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // EXTENSION: Regex fallback exposed publicly for Dashboard toggleChecklist
-// ─────────────────────────────────────────────────────────────────────────────
 
 extension OllamaProcessorExt on OllamaClipProcessor {
   String processWithRegexPublic(String text) {

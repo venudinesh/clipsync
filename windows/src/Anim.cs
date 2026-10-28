@@ -63,18 +63,14 @@ namespace ClipSyncAI
             Ticker.Poke();
         }
 
-        /// Moves the value on and says whether it changed, which is the question
-        /// every caller is really asking: they repaint when it did.
+        /// Moves the value on and says whether it changed; callers repaint when
+        /// it did.
         ///
-        /// The frame that finishes an animation counts as a change. It has to: a
-        /// caller only paints when told to, and if the finishing frame said
-        /// nothing the last thing drawn would be wherever the value had reached
-        /// the frame before. Usually that is a pixel short and invisible, but a
-        /// page being built for the first time can hold the message loop past
-        /// the whole duration, and then the first frame is also the last, the
-        /// value snaps to its target unseen, and whatever moved is left drawn
-        /// where it started. That is how the rail came to show two current
-        /// destinations at once.
+        /// The frame that finishes an animation counts as a change. A caller
+        /// only paints when told to, and if that frame said nothing, a page
+        /// built for the first time could hold the message loop past the whole
+        /// duration and draw the target unseen. That's how the rail once showed
+        /// two current destinations at once.
         public bool Advance()
         {
             if (!_running) return false;

@@ -1,15 +1,13 @@
 // The scrollbar for a native text box.
 //
-// Windows draws its own inside an edit control, in the system's colours, and it
-// cannot be recoloured on 7 or 8. One light grey bar inside a dark card reads as
-// a fault, so the control is told to have none and this draws one instead: the
-// same four pixel thumb the feed and the ledger use, in the same two shades.
+// Windows draws its own in the system colours, and they can't be changed on 7
+// or 8. A light grey bar inside a dark card looks like a bug, so the edit
+// control draws none and this draws the same four-pixel thumb as the feed and
+// the ledger, in the same two shades.
 //
-// It keeps no record of the text. Where the box is scrolled to, and how far it
-// can go, are asked of the box itself through two messages an edit control has
-// answered since Windows 3. So wrapping, the caret, the page keys and a
-// selection dragged past the bottom edge all keep working, and this only ever
-// reflects what the control has already done.
+// It keeps no record of the text: position and range come from the control
+// through two messages it has answered since Windows 3. Wrapping, the caret,
+// page keys and drag-selection all keep working.
 
 using System;
 using System.Drawing;

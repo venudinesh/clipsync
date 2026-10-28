@@ -1,6 +1,6 @@
 # ClipSync AI v1.0.0
 
-The clipboard that thinks — 100% offline, on your phone. No account, no server, no telemetry.
+A clipboard that thinks, on your phone. Offline by default: no account, no server, no telemetry.
 
 **Download** — [app-release.apk](../../releases/latest) · 127.5 MB · Android 7.0+
 ```

@@ -6,11 +6,12 @@
      sources can be opened in an IDE and stepped through, and it is kept in step
      with those scripts by hand rather than generated.
 
-     Two things in it are load bearing. The language version is pinned to 5,
-     because the shipping build uses the C# 4.0 compiler in C:\Windows and
-     anything newer than C# 5 would compile here and fail there. And the output
-     goes under build\ with the configuration in the folder name, so a debug run
-     cannot quietly overwrite a released ClipSyncAI-x64.exe. -->
+     The target is .NET Framework 4.0 and the language version is 7.3, so an
+     IDE build can use modern C# against the oldest runtime worth supporting.
+     build.cmd and build.sh default to the compiler inside Windows, which only
+     speaks C# 5; point CSC at a Roslyn csc.exe when newer syntax has to ship.
+     The output goes under build\ with the configuration in the folder name, so
+     a debug run cannot quietly overwrite a released ClipSyncAI-x64.exe. -->
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -20,7 +21,7 @@
     <RootNamespace>ClipSyncAI</RootNamespace>
     <AssemblyName>ClipSyncAI</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
-    <LangVersion>5</LangVersion>
+    <LangVersion>7.3</LangVersion>
     <FileAlignment>512</FileAlignment>
     <WarningLevel>4</WarningLevel>
     <ApplicationManifest>app.manifest</ApplicationManifest>

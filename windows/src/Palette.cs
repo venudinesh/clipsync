@@ -64,7 +64,7 @@ namespace ClipSyncAI
             return Hsl.ToColor(h, s, l);
         }
 
-        // ── Surfaces ────────────────────────────────────────────────────────
+        // Surfaces
         //
         // Off-black rather than #000000: pure black flattens depth, because a
         // shadow cast onto it is invisible. True black stays reachable, but

@@ -2,9 +2,9 @@
 
 **Your clipboard, with a brain — and nothing ever leaves your machine.**
 
-A privacy-first clipboard app that runs every model on your own hardware. No account, no
-telemetry, no cloud jamboree. Everything below is **100% offline-capable**; the optional AI
-provider connections are strictly opt-in, twice.
+A clipboard app that runs its models on your own hardware. No account, no telemetry. It
+works offline; the optional AI providers are off until you configure one, and the app asks
+before anything is sent.
 
 ## What's new in v1.1.0
 
@@ -38,7 +38,7 @@ Linux and macOS desktop binaries are produced by the
 
 - **On-device inference.** Every model runs inside the app. Turn off the Wi-Fi mid-demo if you like; the only thing that stops is model downloads.
 - **Encrypted storage.** AES-256, per-domain keys, sealed to your device.
-- **No exfiltration code.** There is no code path that exports your clips. Not a setting — just the absence of a feature.
+- **Local by default.** Clips and notes are never uploaded. Chat reaches a provider only after you configure one and confirm, and the app shows which one is connected.
 
 ## Platform notes
 

@@ -7,7 +7,6 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:llamadart/llamadart.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // On-Device LLM Service
 //
 // Wraps llamadart (which wraps llama.cpp — the same engine Ollama uses) to
@@ -19,7 +18,6 @@ import 'package:llamadart/llamadart.dart';
 //   • Chat with system/user/assistant roles
 //   • Model lifecycle: load, generate, dispose
 //   • Automatic model directory management
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Curated list of small GGUF models suitable for mobile devices.
 class ModelCatalogEntry {
@@ -62,7 +60,7 @@ class ModelCatalogEntry {
 
 /// Curated catalog of small, mobile-friendly GGUF models.
 const List<ModelCatalogEntry> kModelCatalog = [
-  // ── Ultra-Light (< 500 MB) ────────────────────────────────────────────
+  // Ultra-Light (< 500 MB)
   ModelCatalogEntry(
     id: 'smollm2-135m',
     displayName: 'SmolLM2 135M',
@@ -103,7 +101,7 @@ const List<ModelCatalogEntry> kModelCatalog = [
     estimatedTokPerSec: 30.0,
   ),
 
-  // ── Small (500 MB – 2 GB) ─────────────────────────────────────────────
+  // Small (500 MB – 2 GB)
   ModelCatalogEntry(
     id: 'llama3.2-1b',
     displayName: 'Llama 3.2 1B',
@@ -144,7 +142,7 @@ const List<ModelCatalogEntry> kModelCatalog = [
     estimatedTokPerSec: 25.0,
   ),
 
-  // ── Medium (2 GB+) ────────────────────────────────────────────────────
+  // Medium (2 GB+)
   ModelCatalogEntry(
     id: 'llama3.2-3b',
     displayName: 'Llama 3.2 3B',
@@ -217,7 +215,7 @@ class DownloadState {
 
 /// Manages on-device LLM inference using llama.cpp via llamadart.
 class OnDeviceLlmService {
-  // ── Singleton ────────────────────────────────────────────────────────────
+  // Singleton
   static final OnDeviceLlmService _instance = OnDeviceLlmService._internal();
   factory OnDeviceLlmService() => _instance;
 OnDeviceLlmService._internal();
@@ -225,9 +223,8 @@ OnDeviceLlmService._internal();
   /// Maximum characters a single prompt/OCR input is allowed to contribute.
   static const int _maxPromptChars = 8192;
 
-  // ── State ────────────────────────────────────────────────────────────────
+  // State
   LlamaEngine? _engine;
-  ChatSession? _session;
   bool _isLoaded = false;
   bool _isGenerating = false;
   String? _loadedModelPath;
@@ -259,7 +256,7 @@ OnDeviceLlmService._internal();
     return result;
   }
 
-  // ── Getters ──────────────────────────────────────────────────────────────
+  // Getters
   bool get isLoaded => _isLoaded;
   bool get isGenerating => _isGenerating;
   String? get loadedModelId => _loadedModelId;
@@ -302,7 +299,7 @@ OnDeviceLlmService._internal();
     return '${modelsDir.path}/${catalog.hfFile}';
   }
 
-  // ── Model Download ───────────────────────────────────────────────────────
+  // Model Download
 
   /// Global, app-lifetime map of active/past downloads. Keyed by catalog id.
   /// Any screen (Settings, a notification, a model browser) can watch this via
@@ -554,7 +551,7 @@ OnDeviceLlmService._internal();
     final modelsDirFuture = getModelsDirectory();
     modelsDirFuture.then((dir) async {
       int got = baseline;
-      for (final f in (await dir.listSync().toList())) {
+      for (final f in dir.listSync()) {
         final name = f.path.split(Platform.pathSeparator).last;
         if (name.startsWith('${catalog.hfFile}.part')) {
           got += await File(f.path).length();
@@ -619,7 +616,7 @@ OnDeviceLlmService._internal();
     }
   }
 
-  // ── Engine Lifecycle ─────────────────────────────────────────────────────
+  // Engine Lifecycle
 
   /// Loads a GGUF model file and initializes the llama.cpp engine.
   /// Uses engine.loadModel(path) — the correct llamadart API.
@@ -667,9 +664,6 @@ OnDeviceLlmService._internal();
         ),
       );
 
-      // Create a ChatSession for convenient multi-turn chat
-      _session = ChatSession(_engine!);
-
       _loadedModelPath = modelPath;
       _loadedModelId = modelId ?? modelPath.split(Platform.pathSeparator).last;
       _isLoaded = true;
@@ -678,7 +672,6 @@ OnDeviceLlmService._internal();
     } catch (e, stackTrace) {
       _isLoaded = false;
       _engine = null;
-      _session = null;
       debugPrint('[OnDeviceLLM] ❌ Failed to load model: $e');
       debugPrint('[OnDeviceLLM] Stack trace: $stackTrace');
       rethrow;
@@ -695,7 +688,6 @@ OnDeviceLlmService._internal();
         debugPrint('[OnDeviceLLM] Error disposing engine: $e');
       }
       _engine = null;
-      _session = null;
       _isLoaded = false;
       _isGenerating = false;
       _loadedModelPath = null;
@@ -703,7 +695,7 @@ OnDeviceLlmService._internal();
     }
   }
 
-  // ── Text Generation ──────────────────────────────────────────────────────
+  // Text Generation
 
   /// Generates text using a prompt with streaming output.
   /// Uses engine.create() directly with LlamaChatMessage list.
@@ -815,7 +807,7 @@ OnDeviceLlmService._internal();
     }
   }
 
-  // ── Convenience Methods for ClipSync ─────────────────────────────────────
+  // Convenience Methods for ClipSync
 
   /// Processes raw clipboard text into structured Markdown.
   Future<String> processClipboardText(String rawText) async {
@@ -858,7 +850,7 @@ $rawText''';
         maxTokens: 1024, temperature: 0.5);
   }
 
-  // ── Diagnostics ──────────────────────────────────────────────────────────
+  // Diagnostics
 
   Map<String, dynamic> getDiagnostics() {
     return {
@@ -873,7 +865,6 @@ $rawText''';
 
   /// Clears conversation history (call when starting a new chat).
   void clearHistory() {
-    _session = _engine != null ? ChatSession(_engine!) : null;
     debugPrint('[OnDeviceLLM] History cleared');
   }
 }

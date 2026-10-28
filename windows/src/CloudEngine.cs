@@ -1,16 +1,14 @@
 // The cloud AI engine: an API key talks to a hosted provider.
 //
-// This is the one engine that sends your prompts somewhere else, which is why
-// it is opt-in twice: an API key must be present and the one-time allowance in
-// Settings must have been granted. Until both hold, every call fails with a
-// readable reason and the clipboard pass falls back to the regex engine, so a
-// half-configured cloud account can never quietly leak text.
+// This is the only engine that sends prompts somewhere else, so it is opt-in
+// twice: a key must be present and the one-time allowance in Settings must be
+// granted. Until both are true every call fails with a readable reason and the
+// clipboard pass falls back to the regex engine.
 //
-// Two wire shapes cover every provider. OpenAI's /v1/chat/completions contract
-// (OpenAI, Groq, Mistral, xAI, OpenRouter and any custom endpoint) is the same
-// as the local OpenAI adapter, plus an Authorization header. Anthropic speaks
-// /v1/messages with its own headers, and Gemini streams from
-// streamGenerateContent with the key on the query string.
+// Two wire shapes cover every provider: OpenAI's /v1/chat/completions contract
+// (OpenAI, Groq, Mistral, xAI, OpenRouter, custom endpoints) and Anthropic's
+// /v1/messages. Gemini streams from streamGenerateContent with the key in the
+// query string.
 
 using System;
 using System.Collections.Generic;

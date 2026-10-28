@@ -9,7 +9,7 @@ driven with one thumb. Every existing feature is intact, every screen gained the
 everyday management actions it was missing, and a cold start now reaches the
 first frame in around 0.6 s.
 
-Still 100% offline. Still no account, no server, no telemetry.
+Still offline by default. Still no account, no server, no telemetry.
 
 ## Download
 

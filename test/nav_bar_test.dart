@@ -334,12 +334,12 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: MediaQuery(
-            data: const MediaQueryData(
+            data: MediaQueryData(
               padding: EdgeInsets.only(bottom: 24),
             ),
-            child: const KeyboardVisibility(
+            child: KeyboardVisibility(
               visible: true,
               child: Scaffold(body: NavBarScrollEdge()),
             ),

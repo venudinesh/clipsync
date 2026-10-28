@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:clip_sync_ai/main.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 
 void main() {
   group('clipSimilarity', () {

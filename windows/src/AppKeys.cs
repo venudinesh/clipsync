@@ -31,19 +31,14 @@ namespace ClipSyncAI
             return true;
         }
 
-        /// The innermost control under a screen point that can actually be seen.
+        /// The innermost visible control under a screen point.
         ///
-        /// Asking a control which child sits at a point, without saying which
-        /// children ought to count, is answered with any of them: hidden ones
-        /// included. Every page this app is not showing is a hidden child the
-        /// size of the whole stage, and a page keeps its window once it has been
-        /// shown, so after the second destination was visited the front of the z
-        /// order at almost any point was a page nobody was looking at. The wheel
-        /// was handed to that page and swallowed there, and no surface in the app
-        /// scrolled by wheel again until it was restarted. Disabled children are
-        /// skipped for the reason Windows skips them, which is that they take no
-        /// input. The depth cap is there because a control that answered with
-        /// itself would otherwise spin here forever.
+        /// GetChildAtPoint without a filter returns hidden children too, and
+        /// every page this app isn't showing is a hidden child the size of the
+        /// stage. After the second tab was visited, the wheel went to a page
+        /// nobody could see and was swallowed there. Disabled children are
+        /// skipped because Windows skips them, and the depth cap stops a
+        /// control that returns itself from spinning forever.
         internal static Control Deepest(Control root, Point screen)
         {
             Control at = root;

@@ -1,16 +1,12 @@
 // The decorations inside a line: links, addresses and dates.
 //
-// Three rules that rewrite text in place, each of them writing markdown that it
-// can also read. That is the whole difficulty. Run over its own output, the URL
-// rule matched the target inside a link it had written and nested it in another,
-// the address rule wrapped its own label, and a date collected one more calendar
-// on every trip. One click was enough to see it: Copy result puts the tidied
-// text back on the clipboard and the monitor catches whatever lands there. Text
-// that arrived with links already in it, written by hand, was mangled the same
-// way on the first pass.
+// Three rules that rewrite text in place, each writing markdown it can also
+// read. That's the hard part. Run over its own output, the URL rule nested a
+// link inside itself, the address rule wrapped its own label, and dates gained
+// a calendar every pass. Copy result puts the tidied text back on the clipboard,
+// so one click was enough to see it.
 //
-// So each rule leaves alone what is already decorated. Nothing inside a markdown
-// link is touched again, and a date keeps the one calendar it has.
+// Each rule now leaves alone what is already decorated.
 
 using System;
 using System.Text;

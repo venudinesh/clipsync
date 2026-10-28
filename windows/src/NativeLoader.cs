@@ -1,16 +1,13 @@
 // The bundled llama.cpp runtime: extraction and binding.
 //
-// The x64 executable carries llama.dll and its friends as embedded resources so
-// the build stays a single file. On first use they are written out — beside the
-// executable in portable mode, otherwise under %LOCALAPPDATA%\ClipSyncAI\native
-// where the account can write without an administrator. Every entry point is
-// resolved through GetProcAddress, so a missing or mismatched runtime fails as
-// a readable line in Settings instead of a startup crash.
+// The x64 executable carries llama.dll and friends as embedded resources, so the
+// build stays a single file. They're written out on first use: beside the exe in
+// portable mode, otherwise under %LOCALAPPDATA%\ClipSyncAI\native, where no
+// admin rights are needed. Entry points are resolved with GetProcAddress, so a
+// missing runtime shows up as a line in Settings instead of a crash at startup.
 //
-// The runtime is the CPU build of llama.cpp b10809 (the engine Ollama itself is
-// built on). Recent llama.cpp releases ship x64 only, so the 32-bit executable
-// reports that embedded models need the 64-bit build and keeps every other
-// engine.
+// The runtime is the CPU build of llama.cpp b10809. Recent releases are x64
+// only, so the 32-bit exe says embedded models need the 64-bit build.
 
 using System;
 using System.IO;

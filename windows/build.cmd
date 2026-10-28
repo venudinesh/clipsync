@@ -1,9 +1,12 @@
 @echo off
 rem Builds ClipSyncAI for Windows: the tests first, then both executables.
 rem
-rem No SDK, no NuGet, no MSBuild. The only tool used is the C# compiler that ships
-rem inside Windows itself, so this runs on a machine with nothing installed beyond
-rem the .NET Framework that Windows already has. Nothing is downloaded.
+rem No SDK, no NuGet, no MSBuild. By default the only tool used is the C#
+rem compiler that ships inside Windows itself, so this runs on a machine with
+rem nothing installed beyond the .NET Framework that Windows already has.
+rem Nothing is downloaded. That compiler only speaks C# 5: set CSC to a Roslyn
+rem csc.exe (Visual Studio, Build Tools) to build the same sources with C# 7.3.
+rem The target stays .NET Framework 4.0 either way.
 rem
 rem Usage:  build.cmd          tests, then x86 and x64
 rem         build.cmd tests    tests only
@@ -15,6 +18,8 @@ cd /d "%~dp0"
 set WHAT=%1
 if "%WHAT%"=="" set WHAT=all
 
+set LANGVER=5
+if defined CSC goto :csc_given
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 if not exist "%CSC%" set CSC=%WINDIR%\Microsoft.NET\Framework\v4.0.30319\csc.exe
 if not exist "%CSC%" (
@@ -23,9 +28,19 @@ if not exist "%CSC%" (
     echo and is a free download for Windows 7.
     exit /b 1
 )
+goto :csc_ready
 
+:csc_given
+if not exist "%CSC%" (
+    echo CSC points at "%CSC%", which does not exist.
+    exit /b 1
+)
+set LANGVER=7.3
+
+:csc_ready
 set REFS=-r:System.dll -r:System.Core.dll -r:System.Drawing.dll -r:System.Security.dll -r:System.Windows.Forms.dll
-set OPTS=-nologo -codepage:65001 -optimize+ -warn:4
+set OPTS=-nologo -codepage:65001 -optimize+ -warn:4 -langversion:%LANGVER%
+echo using C# %LANGVER%: %CSC%
 
 rem The llama.cpp runtime rides inside the executable as embedded resources and
 rem is written out on first use (NativeLoader). The names are the plain file
@@ -55,6 +70,10 @@ for %%A in (x86 x64) do call :one %%A
 if errorlevel 1 exit /b 1
 if exist build\core.dll del /q build\core.dll
 if exist build\tests.exe del /q build\tests.exe
+
+rem Signing is a no-op unless a certificate is configured; see sign.cmd.
+call sign.cmd "build\ClipSyncAI-x86.exe" "build\ClipSyncAI-x64.exe"
+if errorlevel 1 exit /b 1
 
 echo.
 echo built:

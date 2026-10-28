@@ -2,24 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:intl/intl.dart';
 
 import 'design_tokens.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// THE LEDGER
+// The Ledger.
 //
-// The app's second surface language. The first gave every idea its own rounded
-// plate, which produced screens of equally sized cards with no hierarchy: the
-// shape of generated output rather than of a designed page.
-//
-// This file replaces the plate with a rule. Groups are separated by a hairline
-// and a space step, hierarchy is carried by type weight and colour, and an
-// elevated surface is spent only where elevation means something (a sheet, an
-// editor, a model reply). Numbers are tabular, so a value that changes does not
-// shuffle the row it sits in.
-// ─────────────────────────────────────────────────────────────────────────────
+// The app's second surface language. The first gave every idea a rounded plate,
+// which made screens of equally sized cards with no hierarchy. This one groups
+// with a hairline and space, carries hierarchy in type weight and colour, and
+// spends elevation only where it means something: a sheet, an editor, a model
+// reply. Figures are tabular, so a changing number doesn't shuffle its row.
 
 /// The type ramp. Six steps, each with one job. Nothing should invent a size
 /// that is not on this ladder.
@@ -1101,20 +1095,12 @@ Future<T?> ledgerSheet<T>(
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// COMPOSITION
+// Composition.
 //
-// The ledger fixed the plate problem and created a new one: every group became
-// a stack of full-width rows with a hairline under each, under a label. A page
-// built entirely from one family reads as undesigned however clean each part
-// is, and a rule under every row of a long list is the flattest thing a list
-// can be.
-//
-// What follows is the set of other families, so a screen can be composed from
-// four or five of them instead of repeating one: a split masthead, a strip of
-// figures set large, an elevated instrument, an inset field, and a list that
-// hangs off a margin rail instead of sitting between two rules.
-// ─────────────────────────────────────────────────────────────────────────────
+// The ledger fixed the plates but made every group a stack of full-width rows
+// over a rule, which gets flat on a long page. These are the other families a
+// screen can be built from: a split masthead, large figures, an elevated
+// instrument, an inset field, and a list that hangs off a margin rail.
 
 /// An elevated surface. Spent once per screen, on the thing the screen is for:
 /// the capture switch, the model, the editor. Everything else stays on the page.
@@ -1568,16 +1554,13 @@ class SwipeAct {
 
 /// A list entry that hangs off a margin instead of sitting between two rules.
 ///
-/// The time and the entry's own control live in the left margin, and a single
-/// vertical rule separates them from the content, so a feed of twenty clips
-/// draws twenty short verticals rather than twenty full-width horizontals. When
-/// the entry is marked the rule itself becomes the accent, which means the flag
-/// costs nothing extra on the page.
+/// The time and the entry's action live in the left margin, separated from the
+/// content by a short vertical rule. Marking the entry turns that rule into the
+/// accent, so the flag costs no extra space.
 ///
-/// Tap opens, long press gives the row's actions, and dragging the row aside
-/// runs one action without opening anything. All three are wired here rather
-/// than at each call site so the clips feed, the notes feed and the chat history
-/// cannot drift apart in how they answer the same gesture.
+/// Tap opens, long-press shows the actions, and dragging aside runs one without
+/// opening anything. All three live here so clips, notes and chat history answer
+/// the same gesture the same way.
 class MarginEntry extends StatelessWidget {
   const MarginEntry({
     required this.margin,

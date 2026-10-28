@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../ui/ui.dart';
@@ -356,8 +356,8 @@ class _ChatHistorySheetState extends State<_ChatHistorySheet> {
         title: const Text('Delete all chats?'),
         content: Text(
           n == 1
-              ? 'One conversation will be removed from this device.'
-              : '$n conversations will be removed from this device.',
+              ? 'This removes the conversation from this device.'
+              : 'This removes $n conversations from this device.',
         ),
         actions: [
           TextButton(

@@ -1,21 +1,16 @@
 // The clipboard text processor.
 //
-// A line by line port of OllamaClipProcessor from lib/main.dart. The regex
-// engine is the one part of the pipeline that always runs: it needs no model,
-// no server and no network, so every AI action in the app still produces
-// something useful on a machine with nothing installed. When a local engine is
-// present it takes the first attempt and this remains the fallback.
+// A line-by-line port of OllamaClipProcessor from lib/main.dart, and the one
+// part of the pipeline that always runs: no model, no server, no network. When
+// a local engine is present it gets the first attempt and this is the fallback.
 //
-// Character class semantics are pinned to ECMAScript, which is what Dart's
-// RegExp uses. Without that, .NET would widen \w and \d to every script in
-// Unicode and a line of Japanese would start matching the key and value rule
-// that the phone build leaves alone.
+// Character classes are pinned to ECMAScript because that's what Dart uses.
+// Without it .NET would widen \w and \d to every script, and Japanese text
+// would start matching the key/value rule the phone build leaves alone.
 //
-// Tidying has to survive being done twice. Copy result puts the tidied text
-// back on the clipboard, the monitor catches whatever lands there, and it
-// arrives here a second time, so text that is already tidy has to come out
-// unchanged. The inline rules in ClipInline.cs leave what they have already
-// written alone; the fence test below is the same promise for whole lines.
+// Tidying has to survive being done twice: Copy result puts the text back on the
+// clipboard, the monitor catches it, and it arrives here again. Anything already
+// tidy has to come out unchanged.
 
 using System;
 using System.Text;

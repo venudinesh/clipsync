@@ -1,15 +1,13 @@
 // Clips: what a row looks like, and where its actions are.
 //
-// The phone prints a clip as a margin entry: when it arrived down the left, one
-// vertical rule, then what it says. The desktop keeps that shape and adds what a
-// pointer makes possible, which is three actions that appear in the row under the
-// cursor instead of three buttons sitting in every row forever.
+// The phone prints a clip as a margin entry: time on the left, one rule, then
+// the text. The desktop keeps that shape and adds three actions that appear
+// under the cursor instead of sitting in every row forever.
 //
-// A row has space for two lines, so it prints the clip's first line and then what
-// follows it. The phone prints the whole formatted clip in the row and the
-// untidied original underneath; one line cannot hold both, and a dim line that
-// repeats the words directly above it reads as a mistake rather than as the
-// original. The original is a click away in the clip's own sheet.
+// A row has space for two lines, so it shows the first line and what follows.
+// The phone can show the original underneath; one line can't hold both, and a
+// dim repeat of the line above reads as a mistake. The original is one click
+// away in the clip's sheet.
 
 using System;
 using System.Collections.Generic;

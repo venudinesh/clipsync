@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:whisper_flutter_new/whisper_flutter_new.dart';
@@ -205,7 +205,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     });
   }
 
-  // ── Send Message ──────────────────────────────────────────────────────
+  // Send Message
 
   /// Sends a turn. With no arguments it consumes the composer and its pending
   /// attachments. [display] and [prompt] let a one-tap action show a short
@@ -384,7 +384,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     _persist();
   }
 
-  // ── Session Actions ──────────────────────────────────────────────────
+  // Session Actions
 
   /// The conversation as plain text, for copying or saving.
   String get _transcript {
@@ -491,7 +491,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
 
 
 
-  // ── Voice Recording ──────────────────────────────────────────────────
+  // Voice Recording
 
   Future<void> _toggleVoiceRecording() async {
     if (_isTranscribing) return;
@@ -530,7 +530,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     }
   }
 
-  // ── Attachments ──────────────────────────────────────────────────────
+  // Attachments
 
   void _showAttachmentMenu() {
     ledgerSheet<void>(
@@ -619,7 +619,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
 
   Future<void> _pickDocument() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['txt', 'md', 'pdf', 'doc', 'docx', 'csv', 'json', 'xml', 'html', 'log'],
       );
@@ -657,7 +657,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
 
   Future<void> _pickAudio() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['wav', 'mp3', 'm4a', 'ogg', 'flac'],
       );
@@ -860,7 +860,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     return firstLine.isEmpty ? 'Chat message' : firstLine;
   }
 
-  // ── Build ────────────────────────────────────────────────────────────
+  // Build
 
   @override
   Widget build(BuildContext context) {
@@ -873,7 +873,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
         SizedBox(height: MediaQuery.of(context).padding.top + Space.sm),
         _buildHeader(context),
 
-        // ── The transcript ──
+        // The transcript
         Expanded(
           child: _messages.isEmpty
               ? _buildEmptyState(context)
@@ -887,7 +887,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
                 ),
         ),
 
-        // ── The composer ──
+        // The composer
         // Glass, because it floats over the transcript on the same layer as the
         // navigation bar directly beneath it. Everything inside it is flat.
         Padding(
@@ -1072,7 +1072,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     );
   }
 
-  // ── Header ───────────────────────────────────────────────────────────
+  // Header
 
   /// The conversation's name, what it is, and the session controls. The same
   /// header component every other tab uses, so Chat is not the one page with a
@@ -1187,9 +1187,9 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     );
   }
 
-  // ── Attachment Preview ───────────────────────────────────────────────
+  // Attachment Preview
 
-  // ── The composer's one setting ────────────────────────────────────────
+  // The composer's one setting
 
   /// Sampling temperature, said in words. "T: 0.70" is a number only the
   /// person who wrote the sampler can read; the four presets have names, and
@@ -1262,7 +1262,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     _toast('${_tempNames[next]}. ${_tempBlurbs[next]}');
   }
 
-  // ── What is attached to the next turn ─────────────────────────────────
+  // What is attached to the next turn
 
   /// The glyph for a kind of attachment. One tone for all four: colour-coding
   /// four file types puts four hues in a strip the width of a thumb, and none
@@ -1362,7 +1362,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     );
   }
 
-  // ── While the mic is open ─────────────────────────────────────────────
+  // While the mic is open
 
   /// Seven bars tracking input level. Reduce Motion holds them still and lets
   /// the hint text carry the state instead.
@@ -1394,7 +1394,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     );
   }
 
-  // ── Nothing said yet ──────────────────────────────────────────────────
+  // Nothing said yet
 
   /// The top of an empty transcript. No 80px gradient circle: a bloom behind an
   /// outline glyph is the most reproduced decoration in generated interfaces,
@@ -1515,7 +1515,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     );
   }
 
-  // ── One turn ──────────────────────────────────────────────────────────
+  // One turn
 
   /// A turn in the transcript. The model's reply gets the full measure of the
   /// page under a quiet speaker label; what you said sits in one soft block

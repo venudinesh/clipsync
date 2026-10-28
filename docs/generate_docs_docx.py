@@ -121,12 +121,12 @@ def add_toc():
 doc.add_paragraph().add_run().add_break()
 doc.add_heading("ClipSync AI", level=0)
 sub = doc.add_paragraph(
-    "Your clipboard, with a brain — and nothing ever leaves your machine.")
+    "A clipboard that does its thinking on your machine.")
 sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 cap = doc.add_paragraph(
-    "Product documentation: what the app does, how it keeps your data "
-    "yours, and how to build and verify it yourself.")
+    "What it does, how it keeps your data on your device, and how to build "
+    "and check it yourself.")
 cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 doc.add_page_break()
@@ -136,13 +136,12 @@ doc.add_page_break()
 
 # ── 1 ──
 h1("1  Why this exists")
-p("Every “smart clipboard” app takes the most sensitive thing on your "
-  "device — your clipboard, full of passwords, one-time codes, half-written "
-  "messages, medical notes — and ships it off to somebody else’s server. "
-  "That is backwards. ClipSync AI does all of its thinking right there on "
-  "your own hardware.")
-p("No account. No server. No telemetry. No “we value your privacy” page "
-  "that means nothing. Just an app that works with the Wi-Fi off.")
+p("Clipboard tools have a bad habit: they take the most sensitive text on "
+  "your device, the passwords, one-time codes and half-written messages you "
+  "copy all day, and send it to a server so the “smart” parts can work. I "
+  "wanted the opposite. ClipSync AI does its thinking on your own hardware.")
+p("No account, no server, no telemetry. Just an app that works with the "
+  "Wi-Fi off.")
 h2("At a glance")
 table(
     ["Platform", "What you get", "Needs"],
@@ -161,8 +160,9 @@ bullets([
     "With no model at all, a built-in engine still cleans, classifies and "
     "tags every clip, and the app is honest about which buttons need a "
     "model and hides the ones that don't.",
-    "It has never sent a single clip anywhere. That is not a setting — "
-    "there is simply no code that does it.",
+    "Nothing leaves the phone unless you configure a cloud provider "
+    "yourself. That path is off by default, and the app confirms before "
+    "sending.",
 ])
 
 # ── 3 ──

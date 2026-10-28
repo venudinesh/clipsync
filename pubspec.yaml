@@ -1,13 +1,13 @@
 name: clip_sync_ai
 description: >
-  ClipSyncAI - 100% offline, privacy-first clipboard processing with on-device LLM inference.
+  ClipSyncAI - offline-first, privacy-first clipboard processing with on-device LLM inference.
   Liquid Glass AMOLED dark mode UI. Runs llama.cpp directly in-app — no server needed.
 publish_to: 'none'
 version: 1.1.1+2
 
 environment:
-  sdk: '>=3.10.7 <4.0.0'
-  flutter: '>=3.38.0'
+  sdk: '>=3.13.0 <4.0.0'
+  flutter: '>=3.47.0'
 
 dependencies:
   flutter:
@@ -17,24 +17,28 @@ dependencies:
   # On-device LLM inference via llama.cpp (the same engine Ollama uses)
   llamadart: ^0.8.21
 
-  # Local database
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
+  # Local database. hive_ce is the maintained fork of Hive 2 and reads the
+  # same box format, so existing encrypted boxes keep opening.
+  hive_ce: ^2.22.0
+  hive_ce_flutter: ^2.5.0
 
-  # Secure storage for encryption keys
-  flutter_secure_storage: ^9.2.2
+  # Secure storage for encryption keys. Stay on 10.x: v11 removed the
+  # migration from v9's EncryptedSharedPreferences store, so jumping straight
+  # to it would orphan every key already on a device. v10 migrates on first
+  # access; a later release can move 10 -> 11 once that has happened.
+  flutter_secure_storage: ^10.3.4
 
   # Path utilities
   path_provider: ^2.1.2
 
   # Device info for hardware-aware model selection
-  device_info_plus: ^11.1.0
+  device_info_plus: ^12.4.0
 
   # Permission handling
-  permission_handler: ^11.3.0
+  permission_handler: ^12.0.3
 
   # Markdown rendering
-  flutter_markdown: ^0.7.0+3
+  flutter_markdown_plus: ^1.0.12
 
   # On-device OCR
   google_mlkit_text_recognition: ^0.13.0
@@ -43,13 +47,13 @@ dependencies:
   image_picker: ^1.1.2
 
   # File picking for chat attachments (docs, audio, etc.)
-  file_picker: ^8.1.2
+  file_picker: ^11.0.3
 
   # UUID generation
   uuid: ^4.3.3
 
   # Date formatting
-  intl: ^0.19.0
+  intl: ^0.20.3
 
   # URL launcher for links
   url_launcher: ^6.2.5
@@ -77,8 +81,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
-  hive_generator: ^2.0.1
-  build_runner: ^2.4.8
 
 # url_launcher_macos and record_macos ship broken SwiftPM manifests for macOS
 # (FlutterMacOS module can't resolve). Vendored copies strip the Package.swift

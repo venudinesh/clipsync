@@ -6,12 +6,12 @@ class ModelCatalog {
   factory ModelCatalog() => _instance;
   ModelCatalog._();
 
-  // ── Full Model Catalog ─────────────────────────────────────────────────
+  // Full Model Catalog
   // Each entry: name, family, params (billions), category, description,
   // minRamMB, recommendedRamMB, downloadSizeMB
 
   static const List<CatalogModel> allModels = [
-    // ── Ultra-Light (0.5B - 1B) ──
+    // Ultra-Light (0.5B - 1B)
     CatalogModel(
       name: 'qwen2.5:0.5b',
       family: 'Qwen 2.5',
@@ -46,7 +46,7 @@ class ModelCatalog {
       tags: ['google', 'efficient', 'quality'],
     ),
 
-    // ── Light (2B - 3B) ──
+    // Light (2B - 3B)
     CatalogModel(
       name: 'llama3.2:1b',
       family: 'Llama 3.2',
@@ -92,7 +92,7 @@ class ModelCatalog {
       tags: ['google', 'quality', 'reasoning'],
     ),
 
-    // ── Medium (7B - 8B) ──
+    // Medium (7B - 8B)
     CatalogModel(
       name: 'llama3.1:8b',
       family: 'Llama 3.1',
@@ -127,7 +127,7 @@ class ModelCatalog {
       tags: ['coding', 'code', 'programming'],
     ),
 
-    // ── Code-Specific ──
+    // Code-Specific
     CatalogModel(
       name: 'codellama:3b',
       family: 'Code Llama',
@@ -162,7 +162,7 @@ class ModelCatalog {
       tags: ['coding', 'code', 'high-quality'],
     ),
 
-    // ── Conversation / Chat ──
+    // Conversation / Chat
     CatalogModel(
       name: 'gemma2:9b',
       family: 'Gemma 2',
@@ -186,7 +186,7 @@ class ModelCatalog {
       tags: ['meta', 'huge', 'best-quality', 'requires-gpu'],
     ),
 
-    // ── Embedding ──
+    // Embedding
     CatalogModel(
       name: 'nomic-embed-text',
       family: 'Nomic Embed',
@@ -200,7 +200,7 @@ class ModelCatalog {
     ),
   ];
 
-  // ── Recommendation Engine ──────────────────────────────────────────────
+  // Recommendation Engine
 
   /// Get all models that can run on this device
   List<CatalogModel> getRunnableModels(DeviceProfile device) {
@@ -270,9 +270,7 @@ class ModelCatalog {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DATA MODELS
-// ─────────────────────────────────────────────────────────────────────────────
 
 class CatalogModel {
   final String name;
