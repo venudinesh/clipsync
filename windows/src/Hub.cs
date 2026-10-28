@@ -32,6 +32,9 @@ namespace ClipSyncAI
         public event Action NotesChanged;
         public event Action StatusChanged;
 
+        /// Raised after "delete everything" so live views drop their state.
+        public event Action Wiped;
+
         /// Raised when a setting changes the look of the app. The shell listens,
         /// re-adopts the theme and re-dresses every view, so a view changing a
         /// colour does not have to know what is above it.
@@ -68,8 +71,33 @@ namespace ClipSyncAI
             Chats.Load();
             Brain.Model = Settings.Model;
             int burned = ClipSmart.PurgeExpired(Clips, Settings.RetentionDays);
+            TrimHistory();
             if (burned > 0) Say("Cleared " +
                 global::ClipSyncAI.Say.Plural(burned, "expired clip"));
+        }
+
+        /// Applies the "keep at most" setting to the history already on disk,
+        /// not just to the next clip that arrives.
+        public void TrimHistory()
+        {
+            int cap = Math.Max(20, Settings.MaxHistory);
+            bool changed = false;
+            while (Clips.Items.Count > cap)
+            {
+                int worst = -1;
+                for (int i = 0; i < Clips.Items.Count; i++)
+                {
+                    ClipEntry c = Clips.Items[i];
+                    if (c.IsPinned) continue;
+                    if (worst < 0 || c.Timestamp < Clips.Items[worst].Timestamp) worst = i;
+                }
+                if (worst < 0) break;
+                Clips.Items.RemoveAt(worst);
+                changed = true;
+            }
+            if (!changed) return;
+            Clips.Save();
+            RaiseClips();
         }
 
         public void SaveSettings()
@@ -107,6 +135,13 @@ namespace ClipSyncAI
             if (undo == null) return false;
             undo();
             return true;
+        }
+
+        public void RaiseWiped()
+        {
+            _undo = null;
+            Action w = Wiped;
+            if (w != null) w();
         }
 
         private Action _undo;
@@ -167,15 +202,19 @@ namespace ClipSyncAI
 
         /// Looks for a local model server on a worker thread, then adopts it on
         /// the UI thread. Called at startup and whenever engine settings change.
+        private int _discoveryGeneration;
+
         public void Rediscover()
         {
-            Thread t = new Thread(new ThreadStart(DiscoverWork));
+            int gen = Interlocked.Increment(ref _discoveryGeneration);
+            EngineKind kind = Settings.Engine;
+            Thread t = new Thread(delegate() { DiscoverWork(gen, kind); });
             t.IsBackground = true;
             t.Name = "engine-discovery";
             t.Start();
         }
 
-        private void DiscoverWork()
+        private void DiscoverWork(int gen, EngineKind kind)
         {
             InferenceEngine found = null;
             string fail = null;
@@ -190,6 +229,12 @@ namespace ClipSyncAI
             {
                 status.Kind = Settings.Engine == EngineKind.Local ? "On this PC" : "Cloud AI";
                 status.Detail = fail;
+            }
+            if (gen != _discoveryGeneration || kind != Settings.Engine)
+            {
+                LocalEngine stale = found as LocalEngine;
+                if (stale != null) stale.Unload();
+                return;
             }
             Land(found, status);
         }
@@ -207,7 +252,13 @@ namespace ClipSyncAI
 
         private void Adopt(InferenceEngine engine, EngineStatus status)
         {
+            InferenceEngine old = Brain.Engine;
             Brain.Engine = engine;
+            if (old != null && !object.ReferenceEquals(old, engine))
+            {
+                LocalEngine local = old as LocalEngine;
+                if (local != null) local.Unload();
+            }
             Status = status;
             Brain.Model = Ai.ChooseModel(status.Models, Settings.Model);
             if (StatusChanged != null) StatusChanged();

@@ -103,6 +103,11 @@ namespace ClipSyncAI
         public override bool Ping(out string error)
         {
             error = null;
+            if (!_s.CloudApproved)
+            {
+                error = "Cloud AI has not been approved in Settings.";
+                return false;
+            }
             if (_s.CloudProvider == CloudProviderKind.Custom && Base.Length == 0)
             {
                 error = "Set the endpoint URL under Cloud API.";

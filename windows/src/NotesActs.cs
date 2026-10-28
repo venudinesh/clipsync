@@ -136,6 +136,8 @@ namespace ClipSyncAI
                 Hub.Oops(append ? "The model did not return a summary" : "The model did not return anything");
                 return;
             }
+            // The note may have been deleted while the model was thinking.
+            if (!Hub.Notes.Items.Contains(n)) return;
             n.Content = append ? was + "\r\n\r\n## Summary\r\n\r\n" + result.Trim() : result.Trim();
             n.UpdatedAt = DateTime.Now;
             if (!Hub.Notes.Items.Contains(n))

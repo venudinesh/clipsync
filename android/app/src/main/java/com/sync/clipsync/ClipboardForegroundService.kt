@@ -44,6 +44,16 @@ class ClipboardForegroundService : Service() {
 
         // Flutter MethodChannel reference (set from MainActivity)
         var flutterMethodChannel: MethodChannel? = null
+
+        // A clipboard write the app made itself, so the listener does not file
+        // it as a new clip.
+        @Volatile
+        private var selfWritten: String? = null
+
+        fun noteSelfWrite(text: String) {
+            selfWritten = text
+            lastClipboardText = text
+        }
     }
 
     private lateinit var clipboardManager: ClipboardManager
@@ -69,6 +79,7 @@ class ClipboardForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "ClipboardForegroundService started")
+        if (isRunning) return START_STICKY
 
         // Create notification channel (Android 8+)
         createNotificationChannel()
@@ -96,10 +107,19 @@ class ClipboardForegroundService : Service() {
         super.onDestroy()
     }
 
+    override fun onTimeout(startId: Int) {
+        Log.w(TAG, "Foreground service timeout; stopping")
+        super.onTimeout(startId)
+        stopSelf()
+    }
+
     // ── Clipboard Listener Registration ─────────────────────────────────
 
     private fun registerClipboardListener() {
         try {
+            // A start while already running would add a second listener; the
+            // framework does not de-duplicate them.
+            clipboardManager.removePrimaryClipChangedListener(clipboardListener)
             clipboardManager.addPrimaryClipChangedListener(clipboardListener)
             Log.d(TAG, "Clipboard listener registered")
         } catch (e: Exception) {
@@ -128,6 +148,12 @@ class ClipboardForegroundService : Service() {
         val text = item.text?.toString() ?: return
 
         if (text.isBlank()) return
+
+        if (text == selfWritten) {
+            selfWritten = null
+            lastClipText = text
+            return
+        }
 
         // ── Debounce filter ──────────────────────────────────────────
         // Prevent recursive loops: if we recently processed the same text, skip

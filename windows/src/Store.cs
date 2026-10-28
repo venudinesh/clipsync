@@ -41,6 +41,13 @@ namespace ClipSyncAI
                 {
                     text = Crypto.Open(File.ReadAllBytes(path));
                 }
+                catch (IOException)
+                {
+                    // A sharing violation or a key file that could not be read
+                    // is not a corrupt store. Leave the file where it is and let
+                    // the caller report it.
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     Paths.Log("store read " + _name, ex);

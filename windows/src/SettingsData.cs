@@ -134,7 +134,11 @@ namespace ClipSyncAI
             JVal root = JVal.Object();
             root.Set("app", "ClipSyncAI");
             root.Set("exported", DateTime.UtcNow.ToString("o"));
-            root.Set("settings", Hub.Settings.ToJson());
+            // The PIN verifier is a single salted hash of a 4-digit number.
+            // Exporting it would hand anyone the backup an offline oracle.
+            JVal settings = Hub.Settings.ToJson();
+            settings.Set("pinHash", "");
+            root.Set("settings", settings);
             root.Set("clips", Rolled<ClipEntry>(Hub.Clips.Items, ClipRow));
             root.Set("notes", Rolled<Note>(Hub.Notes.Items, NoteRow));
             root.Set("chats", Rolled<ChatSession>(Hub.Chats.Items, ChatRow));
@@ -180,6 +184,7 @@ namespace ClipSyncAI
             Hub.Clips.Clear();
             Hub.Notes.Clear();
             Hub.Chats.Clear();
+            Hub.RaiseWiped();
             Hub.RaiseClips();
             Hub.RaiseNotes();
             Hub.Say("Everything on this PC has been deleted");

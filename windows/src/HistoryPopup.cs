@@ -18,10 +18,12 @@ namespace ClipSyncAI
         private readonly Hub _hub;
         private readonly ListBox _list = new ListBox();
         private readonly List<ClipEntry> _items = new List<ClipEntry>();
+        private readonly IntPtr _target;
 
-        public HistoryPopup(Hub hub)
+        public HistoryPopup(Hub hub, IntPtr target)
         {
             _hub = hub;
+            _target = target;
             ShowInTaskbar = false;
             TopMost = true;
             StartPosition = FormStartPosition.Manual;
@@ -95,16 +97,18 @@ namespace ClipSyncAI
             if (body.Length == 0) return;
             Hide();
             if (!_hub.PutClipboard(body)) { Close(); return; }
-            // Let the window that was in front take focus back before the keys
-            // land, or they would paste into the popup's own corpse.
+            // Restore the window that was in front when the popup opened: this
+            // form is top-most, so hiding it does not guarantee the old window
+            // gets focus back before the keys land.
             Thread.Sleep(150);
-            try
+            if (_target != IntPtr.Zero)
             {
-                SendKeys.SendWait("^v");
+                Native.PasteInto(_target);
             }
-            catch (Exception ex)
+            else
             {
-                Paths.Log("history paste", ex);
+                try { SendKeys.SendWait("^v"); }
+                catch (Exception ex) { Paths.Log("history paste", ex); }
             }
             Close();
         }

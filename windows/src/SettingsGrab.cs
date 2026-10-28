@@ -104,6 +104,7 @@ namespace ClipSyncAI
             if (_loading) return;
             Hub.Settings.MaxHistory = Keeps[Math.Min(_keep.Index, Keeps.Length - 1)];
             Hub.SaveSettings();
+            Hub.TrimHistory();
         }
 
         private void OnFloor(object sender, EventArgs e)

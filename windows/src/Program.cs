@@ -35,6 +35,15 @@ namespace ClipSyncAI
                 }
                 Run();
             }
+            catch (Exception ex)
+            {
+                Paths.Log("startup", ex);
+                MessageBox.Show(
+                    "ClipSync could not open its encrypted storage.\n\n" +
+                    "Nothing was deleted. Close any program that may be locking " +
+                    "its files and start ClipSync again.\n\n" + ex.Message,
+                    "ClipSyncAI", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
             finally
             {
                 if (first) { try { one.ReleaseMutex(); } catch (Exception) { } }

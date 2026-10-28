@@ -28,3 +28,7 @@ Desktop.ini
 *.gguf
 
 dist/
+
+# Android release signing
+android/key.properties
+*.jks

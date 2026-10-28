@@ -110,6 +110,8 @@ namespace ClipSyncAI
         {
             base.ApplyTheme();
             _url.ApplyTheme();
+            _key.ApplyTheme();
+            _baseUrl.ApplyTheme();
             _tess.ApplyTheme();
             for (int i = 0; i < _cards.Count; i++) _cards[i].Invalidate();
             Lay();

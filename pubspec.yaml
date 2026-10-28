@@ -12,7 +12,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^2.0.0
 
   # On-device LLM inference via llama.cpp (the same engine Ollama uses)
   llamadart: ^0.8.21
@@ -29,7 +29,7 @@ dependencies:
   flutter_secure_storage: ^10.3.4
 
   # Path utilities
-  path_provider: ^2.1.2
+  path_provider: ^2.1.6
 
   # Device info for hardware-aware model selection
   device_info_plus: ^12.4.0
@@ -44,7 +44,7 @@ dependencies:
   google_mlkit_text_recognition: ^0.13.0
 
   # Image picking for OCR
-  image_picker: ^1.1.2
+  image_picker: ^1.2.4
 
   # File picking for chat attachments (docs, audio, etc.)
   file_picker: ^11.0.3
@@ -56,13 +56,13 @@ dependencies:
   intl: ^0.20.3
 
   # URL launcher for links
-  url_launcher: ^6.2.5
+  url_launcher: ^6.3.3
 
   # Shimmer effects
-  shimmer: ^3.0.0
+  shimmer: ^4.0.0
 
   # Local audio recording for voice notes
-  record: ^7.0.0
+  record: ^7.1.2
 
   # On-device speech-to-text via Whisper.cpp
   whisper_flutter_new: ^1.0.1
@@ -75,12 +75,12 @@ dependencies:
   http: ^1.2.1
 
   # Launch clip playback (Android/iOS/macOS; other platforms fall back to skip)
-  video_player: ^2.9.2
+  video_player: ^2.14.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.1
+  flutter_lints: ^6.0.0
 
 # url_launcher_macos and record_macos ship broken SwiftPM manifests for macOS
 # (FlutterMacOS module can't resolve). Vendored copies strip the Package.swift

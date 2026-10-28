@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -77,45 +78,35 @@ class SecureStorageService {
     );
   }
 
-  /// Open an unencrypted Hive box.
-  Future<Box<T>> openPlainBox<T>(String name) async {
-    return Hive.openBox<T>(name);
-  }
-
-  /// Open a box, trying encrypted first. Only falls back to an unencrypted box
-  /// when no encryption key exists yet (genuine first run). If a key exists but
-  /// the encrypted open fails, we rethrow instead of silently writing plaintext,
-  /// which would leak sensitive clipboard/notes data at rest.
+  /// Opens a box with its stored key, or creates a key on a genuine first run.
   ///
-  /// [existing] lets a caller that has already read [keyLabel] hand the value
-  /// over: an empty string means "looked, and it was not there", and null means
-  /// "not looked yet", in which case this reads it. Null is the safe default,
-  /// because an absent key is what permits the plaintext fallback and a failed
-  /// read must never be mistaken for one.
+  /// If a box file already exists but its key is gone (a restored backup, a
+  /// wiped keystore), this throws instead of minting a replacement key. A new
+  /// key would open an empty box over the old file and leave the real data
+  /// permanently unreadable.
   Future<Box<T>> openBoxWithFallback<T>(
     String name,
     String keyLabel, {
     String? existing,
+    String? boxDirectory,
   }) async {
     final stored = existing ?? await _secureStorage.read(key: keyLabel) ?? '';
     final keyExisted = stored.isNotEmpty;
 
-    try {
-      final key =
-          keyExisted ? base64Url.decode(stored) : await _createKey(keyLabel);
-      return await openEncryptedBox<T>(name, key);
-    } catch (e) {
-      // First launch with no pre-existing key: allow opening a plaintext box so
-      // a box left over from an older unencrypted build still loads.
-      if (!keyExisted) {
-        debugPrint(
-            '[SecureStorage] No key existed; opening plaintext box "$name"');
-        return openPlainBox<T>(name);
+    if (!keyExisted && boxDirectory != null) {
+      final file =
+          File('$boxDirectory${Platform.pathSeparator}$name.hive');
+      if (await file.exists() && await file.length() > 0) {
+        throw StateError(
+          'The encrypted box "$name" already exists but its key is missing. '
+          'Refusing to replace the key and orphan the data.',
+        );
       }
-      // A key existed but the encrypted box failed to open (corruption, a key
-      // mismatch, or a corrupt stored key). Do NOT silently downgrade.
-      rethrow;
     }
+
+    final key =
+        keyExisted ? base64Url.decode(stored) : await _createKey(keyLabel);
+    return openEncryptedBox<T>(name, key);
   }
 
   /// Convenience: open all app boxes concurrently, off one secure-storage round
@@ -125,7 +116,7 @@ class SecureStorageService {
   /// whether its key existed and then asked for the key itself. One [readAll]
   /// answers both questions for all four, and only a genuine first run touches
   /// the store again, to write the keys it had to generate.
-  Future<Map<String, Box>> openAllBoxes() async {
+  Future<Map<String, Box>> openAllBoxes({String? boxDirectory}) async {
     const boxes = <String, String>{
       'clip_history': _clipKeyLabel,
       'notes': _noteKeyLabel,
@@ -147,6 +138,7 @@ class SecureStorageService {
           entry.key,
           entry.value,
           existing: stored == null ? null : stored[entry.value] ?? '',
+          boxDirectory: boxDirectory,
         ).then((b) => MapEntry(entry.key, b)),
     ]);
     return Map.fromEntries(results);

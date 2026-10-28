@@ -984,6 +984,11 @@ class OllamaClipProcessor {
     await _llm.disposeEngine();
     _modelLoaded = false;
     _loadedModelPath = null;
+    // Otherwise the next launch reloads the model the user just unloaded.
+    try {
+      Hive.box(AppDefaults.hiveSettingsBox)
+          .delete(AppDefaults.lastModelPathKey);
+    } catch (_) {}
   }
 
   /// Checks health — returns true if a model is loaded and ready.
@@ -1286,24 +1291,25 @@ void main() async {
   try {
     final appDir = await getApplicationDocumentsDirectory();
     await Hive.initFlutter(appDir.path);
-    await SecureStorageService().openAllBoxes();
+    await SecureStorageService().openAllBoxes(boxDirectory: appDir.path);
     _bootLog('Hive boxes opened');
   } catch (e, st) {
+    _storageError = e.toString();
     debugPrint('[ClipSync] Hive init FAILED: $e');
     debugPrint('[ClipSync] Stack: $st');
-    // Fallback: open plain boxes so the app still works
-    try {
-      const names = ['clip_history', 'notes', 'settings', 'chat_sessions'];
-      await Future.wait<void>([
-        for (final name in names)
-          if (!Hive.isBoxOpen(name)) Hive.openBox(name),
-      ]);
-      _bootLog('Fallback plain boxes opened');
-    } catch (e2) {
-      debugPrint('[ClipSync] Fallback FAILED: $e2');
-    }
   }
 
+  runApp(ClipSyncApp(storageError: _storageError));
+}
+
+String? _storageError;
+
+/// Retries opening the encrypted boxes without ever falling back to plaintext.
+Future<void> _retryStorage() async {
+  final appDir = await getApplicationDocumentsDirectory();
+  await Hive.initFlutter(appDir.path);
+  await SecureStorageService().openAllBoxes(boxDirectory: appDir.path);
+  _storageError = null;
   runApp(const ClipSyncApp());
 }
 
@@ -1318,13 +1324,20 @@ void _bootLog(String message) {
 final ValueNotifier<int> _themeRevision = ValueNotifier(0);
 
 class ClipSyncApp extends StatelessWidget {
-  const ClipSyncApp({super.key});
+  const ClipSyncApp({super.key, this.storageError});
+
+  /// Set when the encrypted boxes could not be opened. The app then shows a
+  /// recovery screen and never touches Hive.
+  final String? storageError;
 
   @override
   Widget build(BuildContext context) {
+    if (storageError != null) {
+      return _StorageFailureApp(message: storageError!);
+    }
     return ValueListenableBuilder<int>(
       valueListenable: _themeRevision,
-      builder: (_, __, ___) {
+      builder: (_, _, _) {
         // Read theme settings from Hive
         final settings = Hive.box(AppDefaults.hiveSettingsBox);
         final modeStr = settings.get(AppDefaults.themeModeKey, defaultValue: 'dark') as String;
@@ -1709,7 +1722,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   /// The privacy lock. On while a PIN is set and the session is not yet
   /// unlocked: cold start, and every return from the background.
-  bool _locked = false;
+  Route<void>? _lockRoute;
   bool _wasPaused = false;
 
   @override
@@ -1721,7 +1734,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _loadThemeSettings();
     _loadAiConnection();
     _initNativeService();
-    _locked = appPinSet();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (appPinSet()) _showLock();
+    });
     // Loading a multi gigabyte GGUF is the heaviest thing the app ever does,
     // and nothing on the first screen depends on it, so it waits until that
     // screen is on the glass. Kicking it off from initState put llama.cpp's
@@ -1771,11 +1786,53 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
     if (state == AppLifecycleState.resumed) {
       if (_wasPaused && appPinSet()) {
-        setState(() => _locked = true);
+        _showLock();
       }
       _wasPaused = false;
       _pollExternalCapture();
+      _captureClipboardOnResume();
     }
+  }
+
+  /// Android 10+ blocks background clipboard reads, so the copy that arrived
+  /// while the app was away is picked up here, on return.
+  Future<void> _captureClipboardOnResume() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      final text = await _clipChannel.invokeMethod<String>('readClipboard');
+      final trimmed = text?.trim() ?? '';
+      if (trimmed.isNotEmpty) await _processIncomingClipboard(trimmed);
+    } catch (_) {}
+  }
+
+  /// Presents the lock as a route above everything, including the clip reader
+  /// and sheets. The old in-tree overlay sat under those routes.
+  void _showLock() {
+    if (!mounted || _lockRoute != null || !appPinSet()) return;
+    final route = PageRouteBuilder<void>(
+      opaque: true,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      pageBuilder: (_, _, _) => PopScope(
+        canPop: false,
+        child: AppLockScreen(
+          onUnlock: _hideLock,
+          biometricOffered: biometricUnlockSet() && appPinSet(),
+          onBiometric: () => biometricService.authenticate(),
+        ),
+      ),
+    );
+    _lockRoute = route;
+    Navigator.of(context, rootNavigator: true).push(route).whenComplete(() {
+      if (identical(_lockRoute, route)) _lockRoute = null;
+    });
+  }
+
+  void _hideLock() {
+    final route = _lockRoute;
+    if (route == null) return;
+    _lockRoute = null;
+    Navigator.of(context, rootNavigator: true).removeRoute(route);
   }
 
   /// Picks up what native Android parked while the app was away: a shared text
@@ -1884,20 +1941,38 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final settings = Hive.box(AppDefaults.hiveSettingsBox);
     final autoStart = settings.get('bgServiceEnabled', defaultValue: true);
     if (autoStart) {
-      await startNativeService();
+      await _startNativeService(quiet: true);
     }
 
     if (mounted) setState(() {});
   }
 
-  Future<void> startNativeService() async {
+  Future<void> startNativeService() => _startNativeService(quiet: false);
+
+  Future<void> _startNativeService({required bool quiet}) async {
+    var started = false;
     try {
-      await _serviceChannel.invokeMethod('startService');
-      _nativeServiceRunning = true;
+      started = await _serviceChannel.invokeMethod<bool>('startService') ?? false;
     } catch (e) {
       debugPrint('Failed to start native service: $e');
     }
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() => _nativeServiceRunning = started);
+    if (!started &&
+        !quiet &&
+        defaultTargetPlatform == TargetPlatform.android) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Android 10 and newer only allow clipboard access while ClipSync '
+            'is open. Clips are still captured when you return, and from the '
+            'share sheet or tile.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 6),
+        ),
+      );
+    }
   }
 
   Future<void> stopNativeService() async {
@@ -2075,7 +2150,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     onStartService: startNativeService,
                     onStopService: stopNativeService,
                     onLockNow: () {
-                      if (appPinSet()) setState(() => _locked = true);
+                      if (appPinSet()) _showLock();
                     },
                     onNavConfigChanged: (NavBarConfig newCfg) {
                       setState(() => _navConfig = newCfg);
@@ -2152,17 +2227,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 ),
               ),
             ),
-            // The privacy lock sits above everything, tabs included: while it
-            // is up there is no feed to read and no bar to leave by.
-            if (_locked)
-              Positioned.fill(
-                child: AppLockScreen(
-                  onUnlock: () => setState(() => _locked = false),
-                  biometricOffered:
-                      biometricUnlockSet() && appPinSet(),
-                  onBiometric: () => biometricService.authenticate(),
-                ),
-              ),
           ],
         ),
         ),
@@ -2178,6 +2242,96 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 /// does not go through the device keystore first. Biometrics, where the
 /// device offers them, are a shortcut past the pad — the PIN stays the way
 /// back in when they fail.
+class _StorageFailureApp extends StatefulWidget {
+  const _StorageFailureApp({required this.message});
+
+  final String message;
+
+  @override
+  State<_StorageFailureApp> createState() => _StorageFailureAppState();
+}
+
+class _StorageFailureAppState extends State<_StorageFailureApp> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _retry() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await _retryStorage();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(brightness: Brightness.dark, useMaterial3: true),
+      home: Scaffold(
+        backgroundColor: const Color(0xFF0B0B0D),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline_rounded,
+                    size: 42, color: Color(0xFFDFA5B4)),
+                const SizedBox(height: 20),
+                const Text(
+                  'ClipSync could not open its encrypted storage',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Your data has not been changed. The app will not fall back '
+                  'to an unencrypted store, so nothing is opened until the key '
+                  'is available.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(height: 1.45, color: Colors.white70),
+                ),
+                const SizedBox(height: 16),
+                SelectableText(
+                  widget.message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, color: Colors.white38),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    _error!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Color(0xFFFF8A80)),
+                  ),
+                ],
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _busy ? null : _retry,
+                  child: Text(_busy ? 'Trying…' : 'Try again'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AppLockScreen extends StatefulWidget {
   const AppLockScreen({
     required this.onUnlock,
@@ -3235,7 +3389,7 @@ class _DashboardViewState extends State<DashboardView>
       PageRouteBuilder<void>(
         transitionDuration: Motion.base,
         reverseTransitionDuration: Motion.fast,
-        pageBuilder: (_, __, ___) => ClipReader(
+        pageBuilder: (_, _, _) => ClipReader(
           ids: ids,
           startIndex: start,
           box: _clipBox,
@@ -3970,6 +4124,15 @@ class _NotesViewState extends State<NotesView>
   Widget _buildList() {
     final notes = _notes;
     final tags = _allTags;
+    if (_filterTag.isNotEmpty && !tags.contains(_filterTag)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            _filterTag.isNotEmpty &&
+            !_allTags.contains(_filterTag)) {
+          setState(() => _filterTag = '');
+        }
+      });
+    }
     final stats = _noteStats;
     final narrowed =
         _searchController.text.trim().isNotEmpty || _filterTag.isNotEmpty;
@@ -4483,12 +4646,12 @@ class _NotesViewState extends State<NotesView>
           padding: inset,
           child: ValueListenableBuilder<TextEditingValue>(
             valueListenable: _contentController,
-            builder: (_, value, __) {
+            builder: (_, value, _) {
               final words = wordCount(value.text);
               final edited = note == null ? null : stampLong(note.updatedAt);
               final line = <String>[
                 words == 0 ? 'Empty' : plural(words, 'word'),
-                if (edited != null) edited,
+                ?edited,
               ].join('  ·  ');
               return Text(line, style: AppType.meta(context));
             },
@@ -5006,9 +5169,16 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
       _toast('The model did not return a summary');
       return;
     }
-    setState(() => _setResultText(field, '$text\n\n## Summary\n\n$result'));
+    // The field may have been edited while the model was thinking. Append to
+    // what is there now instead of writing the stale snapshot over it.
+    final latest = _resultText(field);
+    if (latest.trim().isEmpty) {
+      _toast('The text changed; the summary was discarded');
+      return;
+    }
+    setState(() => _setResultText(field, '$latest\n\n## Summary\n\n$result'));
     _toast('Summary added', undo: () {
-      setState(() => _setResultText(field, text));
+      setState(() => _setResultText(field, latest));
     });
   }
 
@@ -5980,12 +6150,13 @@ class _SettingsViewState extends State<SettingsView>
     final ok = await _confirmWipe(
       title: 'Clear chat history?',
       message: '$count ${count == 1 ? 'conversation' : 'conversations'} will '
-          'be deleted. The chat open right now stays on screen until you leave '
-          "it. You can't undo this.",
+          'be deleted. The chat open right now is cleared too. You can\'t undo '
+          'this.',
       confirmLabel: 'Clear chats',
     );
     if (!ok) return;
     await box.clear();
+    chatHistoryWipe.value++;
     _refreshStorageFigures();
     _dataToast('Chat history cleared');
   }
@@ -7576,7 +7747,9 @@ class _SettingsViewState extends State<SettingsView>
       subtitle: on
           ? 'Everything you copy is saved to Clips, with a quiet notification '
               'while it runs.'
-          : 'Clips only fill up while the app is open in front of you.',
+          : 'Clips fill up when the app is open. Android 10+ does not allow '
+              'background clipboard reads, so captures arrive on return, or '
+              'from the share sheet and tile.',
       value: on,
       divided: false,
       onChanged: (v) {

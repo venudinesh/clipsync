@@ -106,7 +106,13 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
   void initState() {
     super.initState();
     _voiceInput.init();
+    chatHistoryWipe.addListener(_onHistoryWiped);
     _restoreLastSession();
+  }
+
+  void _onHistoryWiped() {
+    if (!mounted) return;
+    setState(() => _applySession(ChatSession.blank()));
   }
 
   /// Reopens the conversation the user left, so Chat comes back where they left
@@ -125,6 +131,8 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
   }
 
   void _applySession(ChatSession s) {
+    _streamSub?.cancel();
+    _streamSub = null;
     _session = s;
     _messages
       ..clear()
@@ -183,6 +191,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
 
   @override
   void dispose() {
+    chatHistoryWipe.removeListener(_onHistoryWiped);
     _persist();
     _streamSub?.cancel();
     _ampSub?.cancel();
@@ -307,7 +316,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
       _streamSub = stream.listen(
         (token) {
           responseBuffer.write(token);
-          if (mounted) {
+          if (mounted && _messages.isNotEmpty) {
             setState(() {
               _messages.last = _ChatBubble(
                 role: 'assistant',
@@ -321,11 +330,13 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
         onDone: () {
           if (mounted) {
             setState(() {
-              _messages.last = _ChatBubble(
-                role: 'assistant',
-                content: responseBuffer.toString(),
-                isStreaming: false,
-              );
+              if (_messages.isNotEmpty) {
+                _messages.last = _ChatBubble(
+                  role: 'assistant',
+                  content: responseBuffer.toString(),
+                  isStreaming: false,
+                );
+              }
               _isGenerating = false;
             });
             _scrollToBottom();
@@ -336,12 +347,14 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
           debugPrint('[Chat] Stream error: $e');
           if (mounted) {
             setState(() {
-              _messages.last = _ChatBubble(
-                role: 'assistant',
-                content: 'Something went wrong: '
-                    '${e.toString().split('\n').first}',
-                isStreaming: false,
-              );
+              if (_messages.isNotEmpty) {
+                _messages.last = _ChatBubble(
+                  role: 'assistant',
+                  content: 'Something went wrong: '
+                      '${e.toString().split('\n').first}',
+                  isStreaming: false,
+                );
+              }
               _isGenerating = false;
             });
             _persist();
@@ -352,12 +365,14 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
       debugPrint('[Chat] Error: $e');
       if (mounted) {
         setState(() {
-          _messages.last = _ChatBubble(
-            role: 'assistant',
-            content: 'Could not generate a reply: '
-                '${e.toString().split('\n').first}',
-            isStreaming: false,
-          );
+          if (_messages.isNotEmpty) {
+            _messages.last = _ChatBubble(
+              role: 'assistant',
+              content: 'Could not generate a reply: '
+                  '${e.toString().split('\n').first}',
+              isStreaming: false,
+            );
+          }
           _isGenerating = false;
         });
         _persist();
@@ -550,7 +565,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
         SheetAction(
           icon: Icons.description_outlined,
           label: 'Document',
-          detail: 'PDF, DOCX, TXT and other text files',
+          detail: 'TXT, Markdown, CSV, JSON and other text files',
           onTap: () {
             Navigator.pop(ctx);
             _pickDocument();
@@ -559,7 +574,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
         SheetAction(
           icon: Icons.graphic_eq_rounded,
           label: 'Recording',
-          detail: 'WAV, MP3 or M4A, transcribed by Whisper',
+          detail: 'WAV recordings, transcribed by Whisper',
           onTap: () {
             Navigator.pop(ctx);
             _pickAudio();
@@ -621,7 +636,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['txt', 'md', 'pdf', 'doc', 'docx', 'csv', 'json', 'xml', 'html', 'log'],
+        allowedExtensions: ['txt', 'md', 'csv', 'json', 'xml', 'html', 'log'],
       );
       if (result == null || result.files.isEmpty) return;
 
@@ -659,7 +674,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['wav', 'mp3', 'm4a', 'ogg', 'flac'],
+        allowedExtensions: ['wav'],
       );
       if (result == null || result.files.isEmpty) return;
 
@@ -1459,7 +1474,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: Space.lg),
         itemCount: openers.length,
-        separatorBuilder: (_, __) => const SizedBox(width: Space.sm),
+        separatorBuilder: (_, _) => const SizedBox(width: Space.sm),
         itemBuilder: (_, i) {
           final (label, prompt, icon) = openers[i];
           return _openerCard(label: label, prompt: prompt, icon: icon);

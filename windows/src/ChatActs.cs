@@ -111,6 +111,21 @@ namespace ClipSyncAI
             _say.Input.Box.Focus();
         }
 
+        /// "Delete everything" must also drop the live conversation, or the
+        /// next message writes the old transcript back into the empty store.
+        private void OnHubWiped()
+        {
+            if (_busy) Stop();
+            _session = new ChatSession();
+            _msgs.Clear();
+            _files.Clear();
+            _at = -1;
+            _arriving = "";
+            Fill();
+            Titled();
+            Invalidate();
+        }
+
         /// Clears the messages and keeps the conversation, which is the phone's
         /// Clear chat: the name and its place in the history survive.
         private void Wipe()

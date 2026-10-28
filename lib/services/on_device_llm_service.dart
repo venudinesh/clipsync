@@ -227,6 +227,7 @@ OnDeviceLlmService._internal();
   LlamaEngine? _engine;
   bool _isLoaded = false;
   bool _isGenerating = false;
+  Completer<void>? _generationGate;
   String? _loadedModelPath;
   String? _loadedModelId;
 
@@ -697,6 +698,21 @@ OnDeviceLlmService._internal();
 
   // Text Generation
 
+  /// One generation at a time on the single shared context. A chat reply, a
+  /// clip capture and a note rewrite all route through the same engine.
+  Future<void> _acquireGeneration() async {
+    while (_generationGate != null) {
+      await _generationGate!.future;
+    }
+    _generationGate = Completer<void>();
+  }
+
+  void _releaseGeneration() {
+    final gate = _generationGate;
+    _generationGate = null;
+    if (gate != null && !gate.isCompleted) gate.complete();
+  }
+
   /// Generates text using a prompt with streaming output.
   /// Uses engine.create() directly with LlamaChatMessage list.
   Stream<String> generateStream(
@@ -709,6 +725,7 @@ OnDeviceLlmService._internal();
       throw StateError('No model loaded. Call loadModel() first.');
     }
 
+    await _acquireGeneration();
     _isGenerating = true;
 
     try {
@@ -740,6 +757,7 @@ OnDeviceLlmService._internal();
       rethrow;
     } finally {
       _isGenerating = false;
+      _releaseGeneration();
     }
   }
 
@@ -773,6 +791,7 @@ OnDeviceLlmService._internal();
       throw StateError('No model loaded. Call loadModel() first.');
     }
 
+    await _acquireGeneration();
     _isGenerating = true;
 
     try {
@@ -804,6 +823,7 @@ OnDeviceLlmService._internal();
       rethrow;
     } finally {
       _isGenerating = false;
+      _releaseGeneration();
     }
   }
 

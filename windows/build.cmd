@@ -66,8 +66,10 @@ if errorlevel 1 exit /b 1
 if "%WHAT%"=="tests" goto done
 
 :app
-for %%A in (x86 x64) do call :one %%A
-if errorlevel 1 exit /b 1
+for %%A in (x86 x64) do (
+    call :one %%A
+    if errorlevel 1 exit /b 1
+)
 if exist build\core.dll del /q build\core.dll
 if exist build\tests.exe del /q build\tests.exe
 

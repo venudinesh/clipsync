@@ -14,6 +14,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 
 namespace ClipSyncAI
 {
@@ -58,31 +59,65 @@ namespace ClipSyncAI
                 string path = Paths.KeyFile;
                 if (File.Exists(path))
                 {
-                    try
+                    bool corrupted = false;
+                    Exception last = null;
+                    for (int attempt = 0; attempt < 3; attempt++)
                     {
-                        byte[] sealedKey = File.ReadAllBytes(path);
-                        byte[] raw = ProtectedData.Unprotect(
-                            sealedKey, Entropy, DataProtectionScope.CurrentUser);
-                        if (raw != null && raw.Length == KeyBytes + MacBytes)
+                        try
                         {
-                            _master = raw;
-                            return _master;
+                            byte[] sealedKey = File.ReadAllBytes(path);
+                            byte[] raw = ProtectedData.Unprotect(
+                                sealedKey, Entropy, DataProtectionScope.CurrentUser);
+                            if (raw != null && raw.Length == KeyBytes + MacBytes)
+                            {
+                                _master = raw;
+                                return _master;
+                            }
+                            corrupted = true;
+                            break;
+                        }
+                        catch (CryptographicException)
+                        {
+                            corrupted = true;
+                            break;
+                        }
+                        catch (IOException ex)
+                        {
+                            last = ex;
+                            Thread.Sleep(120);
+                        }
+                        catch (UnauthorizedAccessException ex)
+                        {
+                            last = ex;
+                            Thread.Sleep(120);
                         }
                     }
-                    catch (Exception)
+                    if (!corrupted)
                     {
-                        // An unreadable key means the existing stores cannot be
-                        // opened either. Rotating is the only way forward; the
-                        // store layer keeps the old file aside rather than
-                        // deleting it, so nothing is destroyed here.
-                        try { File.Move(path, path + ".unreadable-" + Clock.NowMs()); }
-                        catch (Exception) { }
+                        // A sharing violation or an antivirus scan is not a lost
+                        // key. Refuse to rotate; the caller can retry later.
+                        throw new IOException(
+                            "The encryption key could not be read. Nothing was changed.", last);
                     }
+                    try { File.Move(path, path + ".unreadable-" + Clock.NowMs()); }
+                    catch (Exception) { }
                 }
                 _master = Random(KeyBytes + MacBytes);
                 byte[] blob = ProtectedData.Protect(_master, Entropy, DataProtectionScope.CurrentUser);
                 Paths.EnsureRoot();
-                File.WriteAllBytes(path, blob);
+                string temp = path + ".new";
+                try
+                {
+                    File.WriteAllBytes(temp, blob);
+                    if (File.Exists(path)) File.Replace(temp, path, null);
+                    else File.Move(temp, path);
+                }
+                catch (Exception)
+                {
+                    try { File.Delete(temp); }
+                    catch (Exception) { }
+                    throw;
+                }
                 return _master;
             }
         }

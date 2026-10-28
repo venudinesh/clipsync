@@ -109,28 +109,42 @@ namespace ClipSyncAI
                 string dir = Dir;
                 Directory.CreateDirectory(dir);
 
-                // Write anything that is missing or has grown (a partial write
-                // from a killed first run must not be accepted).
+                // Write anything that is missing, truncated or from an older
+                // build. The resource length is the authority: a killed first
+                // run must not leave a short DLL that is accepted forever.
                 foreach (string name in Payload)
                 {
                     string target = Path.Combine(dir, name);
-                    if (!File.Exists(target) || new FileInfo(target).Length == 0)
+                    using (Stream s = asm.GetManifestResourceStream(name))
                     {
-                        using (Stream s = asm.GetManifestResourceStream(name))
+                        if (s == null)
                         {
-                            if (s == null)
-                            {
-                                _error = "The runtime resource \"" + name +
-                                    "\" is missing from this executable.";
-                                return;
-                            }
-                            using (FileStream f = new FileStream(target, FileMode.Create,
+                            _error = "The runtime resource \"" + name +
+                                "\" is missing from this executable.";
+                            return;
+                        }
+                        long expected = s.CanSeek ? s.Length : -1;
+                        if (File.Exists(target) && expected >= 0 &&
+                            new FileInfo(target).Length == expected) continue;
+
+                        string temp = target + ".new";
+                        try
+                        {
+                            using (FileStream f = new FileStream(temp, FileMode.Create,
                                 FileAccess.Write, FileShare.None))
                             {
                                 byte[] buf = new byte[65536];
                                 int n;
                                 while ((n = s.Read(buf, 0, buf.Length)) > 0) f.Write(buf, 0, n);
                             }
+                            if (File.Exists(target)) File.Replace(temp, target, null);
+                            else File.Move(temp, target);
+                        }
+                        catch (Exception)
+                        {
+                            try { File.Delete(temp); }
+                            catch (Exception) { }
+                            throw;
                         }
                     }
                 }

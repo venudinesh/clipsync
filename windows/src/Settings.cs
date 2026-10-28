@@ -136,9 +136,9 @@ namespace ClipSyncAI
             s.RunAtLogin = j["runAtLogin"].AsBool(s.RunAtLogin);
             s.StartMinimised = j["startMinimised"].AsBool(s.StartMinimised);
             s.CloseToTray = j["closeToTray"].AsBool(s.CloseToTray);
-            s.HotkeyOverlay = NonEmpty(j["hotkeyOverlay"].AsString(""), s.HotkeyOverlay);
-            s.HotkeyProcess = NonEmpty(j["hotkeyProcess"].AsString(""), s.HotkeyProcess);
-            s.HotkeyHistory = NonEmpty(j["hotkeyHistory"].AsString(""), s.HotkeyHistory);
+            if (j.Has("hotkeyOverlay")) s.HotkeyOverlay = j["hotkeyOverlay"].AsString("");
+            if (j.Has("hotkeyProcess")) s.HotkeyProcess = j["hotkeyProcess"].AsString("");
+            if (j.Has("hotkeyHistory")) s.HotkeyHistory = j["hotkeyHistory"].AsString("");
             s.TesseractPath = j["tesseractPath"].AsString("");
             s.SpeechCulture = j["speechCulture"].AsString("");
             return s;

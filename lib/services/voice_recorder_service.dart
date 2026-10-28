@@ -15,7 +15,8 @@ class VoiceRecorderService {
   /// (its native bridge reads WAV via dr_wav), so recordings must be captured
   /// in that exact format to transcribe without a conversion step.
   static final bool _recordWhisperFormat =
-      defaultTargetPlatform == TargetPlatform.android;
+      defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.macOS;
 
   /// Whisper's expected sample rate: 16 kHz.
   static const int _whisperSampleRate = 16000;

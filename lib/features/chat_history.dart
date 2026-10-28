@@ -10,6 +10,10 @@ import '../ui/ui.dart';
 /// contain anything the user pasted into it.
 const String kChatBoxName = 'chat_sessions';
 
+/// Bumped after the chat box is wiped so any open ChatView can drop its live
+/// session instead of writing the old transcript back on the next message.
+final ValueNotifier<int> chatHistoryWipe = ValueNotifier(0);
+
 /// A short, human readable age: "just now", "12m ago", "Mar 4".
 String relativeTime(DateTime t) {
   final d = DateTime.now().difference(t);

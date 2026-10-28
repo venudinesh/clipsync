@@ -71,7 +71,7 @@ No account. No telemetry. No server that has to be up for the app to be useful. 
 
 You copy things all day. ClipSync keeps them, cleans them up, and makes them searchable:
 
-- **Copy anything.** It gets saved automatically, including text copied in other apps.
+- **Copy anything.** It gets saved automatically, including text copied in other apps. On Android 10 and newer the system only allows clipboard reads while the app is focused, so those builds catch up when you return, or through the share sheet and tile.
 - **Summarise, tidy, or retitle it.** A model running on your device does the work in a few seconds.
 - **Chat with your clips.** Ask questions, or attach a document, a photo, or a voice note.
 - **Keep notes.** Tags, search, and the same AI help inside the editor.
@@ -129,6 +129,7 @@ Things I know aren't finished, in case you're deciding whether to use or contrib
 
 - `lib/main.dart` is still one very large file. It ships, and the tests cover it, but it should be split by feature.
 - The Windows app has no semantic search and no Windows Hello. Its embedded runtime has no embedding path, and Hello needs the Windows SDK, which the zero-install build deliberately avoids.
+- Android 10 and newer do not allow background clipboard reads. The always-on service only runs on Android 9 and older; newer versions capture when you return to the app, from the share sheet, or from the Quick Settings tile.
 - The macOS builds are unsigned apart from an ad-hoc signature, so the first launch needs right-click → Open.
 - There is no iOS target in the repo yet.
 - Voice input is hidden on Linux because Whisper has no Linux build.
@@ -186,7 +187,7 @@ A few packaging details:
 
 ## What you'll need
 
-**Android:** 7.0 or newer · 4 GB RAM for small models, 6–8 GB+ for larger ones · 1–5 GB free for model files.
+**Android:** 7.0 or newer on a 64-bit ARM device · 4 GB RAM for small models, 6–8 GB+ for larger ones · 1–5 GB free for model files.
 
 **Windows:** Windows 7 or newer, 32- or 64-bit · .NET Framework 4.0+ (already present on Windows 8 and up) · about 23 MB for the exe, plus whatever a model weighs. Embedded models need the 64-bit build.
 

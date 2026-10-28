@@ -32,6 +32,7 @@ class MainActivity : FlutterFragmentActivity() {
         private const val SERVICE_CHANNEL_NAME = "com.sync.clipsync/service"
         private const val SHARE_CHANNEL_NAME = "com.sync.clipsync/share"
         private const val SHARED_PREFS = "com.sync.clipsync.prefs"
+        private const val ENGINE_ID = "main_engine"
 
         /** Action the Quick Settings tile launches us with. */
         const val TILE_CAPTURE_ACTION = "com.sync.clipsync.CAPTURE"
@@ -46,6 +47,9 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleExternalIntent(intent)
+        // A recreated activity reuses the cached engine, so re-register the
+        // channels the old activity had cleared.
+        FlutterEngineCache.getInstance().get(ENGINE_ID)?.let { wire(it) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -79,10 +83,18 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        wire(flutterEngine)
+    }
 
-        // Cache the engine so the service can find it
-        FlutterEngineCache.getInstance().put("main_engine", flutterEngine)
+    /** Keeps one engine alive across activity destruction, so the clipboard
+     * service never holds a channel to a destroyed engine. */
+    override fun provideFlutterEngine(context: Context): FlutterEngine? =
+        FlutterEngineCache.getInstance().get(ENGINE_ID)
 
+    override fun shouldDestroyEngineWithHost(): Boolean = false
+
+    private fun wire(flutterEngine: FlutterEngine) {
+        FlutterEngineCache.getInstance().put(ENGINE_ID, flutterEngine)
         setupClipboardChannel(flutterEngine)
         setupServiceChannel(flutterEngine)
         setupShareChannel(flutterEngine)
@@ -124,8 +136,7 @@ class MainActivity : FlutterFragmentActivity() {
             setMethodCallHandler { call, result ->
                 when (call.method) {
                     "startService" -> {
-                        startClipboardService()
-                        result.success(true)
+                        result.success(startClipboardService())
                     }
                     "stopService" -> {
                         stopClipboardService()
@@ -193,21 +204,29 @@ class MainActivity : FlutterFragmentActivity() {
         val clipData = ClipData.newPlainText("ClipSync", text)
         cm.setPrimaryClip(clipData)
 
-        // Update the service's last-known text to prevent re-processing the write
-        ClipboardForegroundService.lastClipboardText.let {
-            // The service will see this change; it debounces by comparing text
-        }
+        // Do not let the service file the clipboard text we just wrote.
+        ClipboardForegroundService.noteSelfWrite(text)
     }
 
     // ── Service Control ─────────────────────────────────────────────────
 
-    private fun startClipboardService() {
+    /**
+     * Android 10+ only lets the focused app (or the default IME) read the
+     * clipboard, so a background service cannot see other apps' copies. The
+     * service is kept for Android 9 and older; newer builds capture when the
+     * app is resumed, from the share sheet, or from the tile.
+     */
+    private fun startClipboardService(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return false
+        }
         val intent = Intent(this, ClipboardForegroundService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
             startService(intent)
         }
+        return true
     }
 
     private fun stopClipboardService() {
@@ -229,13 +248,9 @@ class MainActivity : FlutterFragmentActivity() {
                 android.Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
             if (granted) return
-            if (
-                !shouldShowRequestPermissionRationale(
-                    android.Manifest.permission.POST_NOTIFICATIONS
-                ) && hasAskedNotificationPermission()
-            ) {
-                return
-            }
+            // Asked once, granted or not. Asking again after a denial is what
+            // produced a system dialog over the app on every launch.
+            if (hasAskedNotificationPermission()) return
             markNotificationAsked()
             requestPermissions(
                 arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),

@@ -96,8 +96,10 @@ namespace ClipSyncAI
             if (!IsHandleCreated) return;
             if (_show == 1) Native.ReleaseHotkey(Handle, KeyShow);
             if (_tidy == 1) Native.ReleaseHotkey(Handle, KeyTidy);
+            if (_hist == 1) Native.ReleaseHotkey(Handle, KeyHistory);
             _show = 0;
             _tidy = 0;
+            _hist = 0;
         }
 
         /// Re-takes the shortcuts after they were rewritten, and says so when
@@ -212,7 +214,8 @@ namespace ClipSyncAI
                 Tell("Nothing kept yet", true);
                 return;
             }
-            _history = new HistoryPopup(_hub);
+            IntPtr target = Native.Foreground();
+            _history = new HistoryPopup(_hub, target);
             _history.FormClosed += delegate { _history = null; };
             _history.Show();
         }
@@ -245,6 +248,16 @@ namespace ClipSyncAI
                 return;
             }
             if (got.Trim() == was.Trim()) { Tell("Already tidy", false); return; }
+            // Formatting can take seconds with a model. If the user copied
+            // something newer while it ran, that text wins.
+            string current;
+            try { current = Clipboard.GetText(); }
+            catch (Exception) { Tell("Could not read the clipboard", true); return; }
+            if (current != was)
+            {
+                Tell("Clipboard changed; left it alone", true);
+                return;
+            }
             if (!_hub.PutClipboard(got)) { Tell("The clipboard could not be written", true); return; }
             if (Visible) _hub.Undoable("Clipboard tidied", new Action(delegate { _hub.PutClipboard(was); }));
             else Tell("Clipboard tidied", false);

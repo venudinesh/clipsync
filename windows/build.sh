@@ -61,6 +61,16 @@ fi
 
 if [ "$what" = "tests" ]; then exit 0; fi
 
+# The runtime DLLs are embedded the same way build.cmd does it: without them
+# the exe has no engine at all. A response file keeps the paths (and their
+# commas) out of the shell's word splitting.
+resp="build/resources.rsp"
+: > "$resp"
+for f in native/*.dll; do
+    win=$(printf '%s' "$f" | sed 's#/#\\#g')
+    printf -- '-resource:"%s",%s\n' "$win" "$(basename "$f")" >> "$resp"
+done
+
 # Both executables, from the same sources. The only difference is the word in the
 # PE header that tells Windows which machine to load it on.
 for arch in x86 x64; do
@@ -70,7 +80,7 @@ for arch in x86 x64; do
     "$csc" $opts -target:winexe -platform:$arch \
         -win32manifest:app.manifest \
         -win32icon:app.ico \
-        -out:"$out" $refs 'src\*.cs'
+        -out:"$out" $refs "@$resp" 'src\*.cs'
     cp app.config "$out.config"
 done
 

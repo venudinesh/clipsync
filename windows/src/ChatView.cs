@@ -79,6 +79,7 @@ namespace ClipSyncAI
 
         public ChatView(Hub hub) : base(hub)
         {
+            hub.Wiped += OnHubWiped;
             _past.Icon = Glyph.Menu;
             _past.Tip = "Chat history";
             _past.Click += OnPast;
