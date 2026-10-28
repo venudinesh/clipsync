@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -28,9 +27,12 @@ class SecureStorageService {
   SecureStorageService({FlutterSecureStorage? secureStorage})
       : _secureStorage = secureStorage ??
             const FlutterSecureStorage(
-              // v10 migrates keys written by v9's EncryptedSharedPreferences
-              // backend on first access. Do not jump to v11 in one step: v11
-              // removed that migration and would orphan every existing key.
+              // v9 is deliberate. The v10 migration from this plugin's v9
+              // EncryptedSharedPreferences store fails on real devices ("bad
+              // base-64"), which would orphan every existing Hive key. Stay on
+              // 9 until that migration is fixed upstream and tested on a
+              // device that already holds keys.
+              aOptions: AndroidOptions(encryptedSharedPreferences: true),
               iOptions: IOSOptions(
                 accessibility: KeychainAccessibility.first_unlock_this_device,
               ),
@@ -88,20 +90,18 @@ class SecureStorageService {
     String name,
     String keyLabel, {
     String? existing,
-    String? boxDirectory,
   }) async {
     final stored = existing ?? await _secureStorage.read(key: keyLabel) ?? '';
     final keyExisted = stored.isNotEmpty;
 
-    if (!keyExisted && boxDirectory != null) {
-      final file =
-          File('$boxDirectory${Platform.pathSeparator}$name.hive');
-      if (await file.exists() && await file.length() > 0) {
-        throw StateError(
-          'The encrypted box "$name" already exists but its key is missing. '
-          'Refusing to replace the key and orphan the data.',
-        );
-      }
+    // A restored backup or a wiped keystore leaves the box file but not the
+    // key. Never mint a replacement over it: the new key would open an empty
+    // box and make the real data permanently unreadable.
+    if (!keyExisted && await Hive.boxExists(name)) {
+      throw StateError(
+        'The encrypted box "$name" already exists but its key is missing. '
+        'Refusing to replace the key and orphan the data.',
+      );
     }
 
     final key =
@@ -116,7 +116,7 @@ class SecureStorageService {
   /// whether its key existed and then asked for the key itself. One [readAll]
   /// answers both questions for all four, and only a genuine first run touches
   /// the store again, to write the keys it had to generate.
-  Future<Map<String, Box>> openAllBoxes({String? boxDirectory}) async {
+  Future<Map<String, Box>> openAllBoxes() async {
     const boxes = <String, String>{
       'clip_history': _clipKeyLabel,
       'notes': _noteKeyLabel,
@@ -138,7 +138,6 @@ class SecureStorageService {
           entry.key,
           entry.value,
           existing: stored == null ? null : stored[entry.value] ?? '',
-          boxDirectory: boxDirectory,
         ).then((b) => MapEntry(entry.key, b)),
     ]);
     return Map.fromEntries(results);

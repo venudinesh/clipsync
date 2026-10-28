@@ -1291,7 +1291,7 @@ void main() async {
   try {
     final appDir = await getApplicationDocumentsDirectory();
     await Hive.initFlutter(appDir.path);
-    await SecureStorageService().openAllBoxes(boxDirectory: appDir.path);
+    await SecureStorageService().openAllBoxes();
     _bootLog('Hive boxes opened');
   } catch (e, st) {
     _storageError = e.toString();
@@ -1308,7 +1308,7 @@ String? _storageError;
 Future<void> _retryStorage() async {
   final appDir = await getApplicationDocumentsDirectory();
   await Hive.initFlutter(appDir.path);
-  await SecureStorageService().openAllBoxes(boxDirectory: appDir.path);
+  await SecureStorageService().openAllBoxes();
   _storageError = null;
   runApp(const ClipSyncApp());
 }

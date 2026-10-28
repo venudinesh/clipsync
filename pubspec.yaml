@@ -26,7 +26,7 @@ dependencies:
   # migration from v9's EncryptedSharedPreferences store, so jumping straight
   # to it would orphan every key already on a device. v10 migrates on first
   # access; a later release can move 10 -> 11 once that has happened.
-  flutter_secure_storage: ^10.3.4
+  flutter_secure_storage: ^9.2.4
 
   # Path utilities
   path_provider: ^2.1.6
