@@ -1809,18 +1809,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   /// and sheets. The old in-tree overlay sat under those routes.
   void _showLock() {
     if (!mounted || _lockRoute != null || !appPinSet()) return;
-    final route = PageRouteBuilder<void>(
-      opaque: true,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-      pageBuilder: (_, _, _) => PopScope(
-        canPop: false,
-        child: AppLockScreen(
-          onUnlock: _hideLock,
-          biometricOffered: biometricUnlockSet() && appPinSet(),
-          onBiometric: () => biometricService.authenticate(),
-        ),
-      ),
+    final route = appLockRoute(
+      onUnlock: _hideLock,
+      biometricOffered: biometricUnlockSet() && appPinSet(),
+      onBiometric: () => biometricService.authenticate(),
     );
     _lockRoute = route;
     Navigator.of(context, rootNavigator: true).push(route).whenComplete(() {
@@ -2345,6 +2337,32 @@ class AppLockScreen extends StatefulWidget {
 
   @override
   State<AppLockScreen> createState() => _AppLockScreenState();
+}
+
+/// The lock as a page of its own. The shell pushes it on the root Navigator so
+/// it covers readers and sheets, and it brings the Material ancestor the PIN
+/// field needs now that it no longer sits inside the shell's Scaffold.
+Route<void> appLockRoute({
+  required VoidCallback onUnlock,
+  required bool biometricOffered,
+  required Future<bool> Function() onBiometric,
+}) {
+  return PageRouteBuilder<void>(
+    opaque: true,
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
+    pageBuilder: (context, _, _) => PopScope(
+      canPop: false,
+      child: Material(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: AppLockScreen(
+          onUnlock: onUnlock,
+          biometricOffered: biometricOffered,
+          onBiometric: onBiometric,
+        ),
+      ),
+    ),
+  );
 }
 
 class _AppLockScreenState extends State<AppLockScreen> {
