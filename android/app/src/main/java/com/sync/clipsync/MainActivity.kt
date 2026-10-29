@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.WindowManager
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -46,6 +47,12 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Clips are the app's content. Keep them out of screenshots and out of
+        // the task-switcher snapshot, which is taken before the PIN can appear.
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_SECURE,
+            WindowManager.LayoutParams.FLAG_SECURE
+        )
         handleExternalIntent(intent)
         // A recreated activity reuses the cached engine, so re-register the
         // channels the old activity had cleared.
@@ -76,6 +83,12 @@ class MainActivity : FlutterFragmentActivity() {
         } else if (intent.action == TILE_CAPTURE_ACTION) {
             prefs.edit().putString("pending_tile", "capture").apply()
             intent.action = null
+        }
+        // The app can already be foreground when a tile or share arrives; a
+        // resume may never follow, so tell Dart to poll now.
+        try {
+            shareChannel?.invokeMethod("externalIntent", null)
+        } catch (_: Exception) {
         }
     }
 

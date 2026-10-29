@@ -49,10 +49,15 @@ class ModelCatalogEntry {
 
   String get hfUrl => 'https://huggingface.co/$hfRepo/resolve/main/$hfFile';
   String get sizeLabel {
-    if (sizeBytes < 1024 * 1024) return '${(sizeBytes / 1024).toStringAsFixed(0)} KB';
-    if (sizeBytes < 1024 * 1024 * 1024) return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(0)} MB';
+    if (sizeBytes < 1024 * 1024) {
+      return '${(sizeBytes / 1024).toStringAsFixed(0)} KB';
+    }
+    if (sizeBytes < 1024 * 1024 * 1024) {
+      return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(0)} MB';
+    }
     return '${(sizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
+
   String get paramLabel => parameterCount >= 1000
       ? '${(parameterCount / 1000).toStringAsFixed(1)}B'
       : '${parameterCount}M';
@@ -172,7 +177,11 @@ const List<ModelCatalogEntry> kModelCatalog = [
 ];
 
 /// Model download progress callback.
-typedef DownloadProgress = void Function(double progress, int received, int total);
+typedef DownloadProgress = void Function(
+  double progress,
+  int received,
+  int total,
+);
 
 /// Live state of an in-progress model download.
 class DownloadState {
@@ -218,7 +227,7 @@ class OnDeviceLlmService {
   // Singleton
   static final OnDeviceLlmService _instance = OnDeviceLlmService._internal();
   factory OnDeviceLlmService() => _instance;
-OnDeviceLlmService._internal();
+  OnDeviceLlmService._internal();
 
   /// Maximum characters a single prompt/OCR input is allowed to contribute.
   static const int _maxPromptChars = 8192;
@@ -276,10 +285,7 @@ OnDeviceLlmService._internal();
   /// Lists all downloaded GGUF model files.
   Future<List<FileSystemEntity>> listDownloadedModels() async {
     final modelsDir = await getModelsDirectory();
-    return modelsDir
-        .listSync()
-        .where((f) => f.path.endsWith('.gguf'))
-        .toList();
+    return modelsDir.listSync().where((f) => f.path.endsWith('.gguf')).toList();
   }
 
   /// Checks if a catalog model is already downloaded.
@@ -309,6 +315,7 @@ OnDeviceLlmService._internal();
   static final ValueNotifier<Map<String, DownloadState>> _downloads =
       ValueNotifier({});
   static final Map<String, bool> _activeTasks = {};
+
   /// Tracks cancelled downloads so in-flight fetch() loops stop writing and
   /// avoid corrupting fragments when a download is restarted.
   static final Set<String> _cancelled = {};
@@ -343,19 +350,25 @@ OnDeviceLlmService._internal();
     // Already fully downloaded.
     if (await isModelDownloaded(catalog) &&
         await File(await getLocalModelPath(catalog)).exists()) {
-      _publish(DownloadState(
-        catalogId: id,
-        modelName: catalog.displayName,
-        progress: 1.0,
-        receivedBytes: catalog.sizeBytes,
-        totalBytes: catalog.sizeBytes,
-        status: 'done',
-      ));
+      _publish(
+        DownloadState(
+          catalogId: id,
+          modelName: catalog.displayName,
+          progress: 1.0,
+          receivedBytes: catalog.sizeBytes,
+          totalBytes: catalog.sizeBytes,
+          status: 'done',
+        ),
+      );
       return getLocalModelPath(catalog);
     }
 
-    // If a task is already active, don't double-start; just await its result.
+    // If a task is already active, wait for it rather than returning a path
+    // that may not exist yet.
     if (_activeTasks[id] == true) {
+      while (_activeTasks[id] == true) {
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
       return getLocalModelPath(catalog);
     }
     _activeTasks[id] = true;
@@ -366,14 +379,16 @@ OnDeviceLlmService._internal();
     const maxRetries = 3;
 
     try {
-      _publish(DownloadState(
-        catalogId: id,
-        modelName: catalog.displayName,
-        progress: 0.0,
-        receivedBytes: 0,
-        totalBytes: catalog.sizeBytes,
-        status: 'downloading',
-      ));
+      _publish(
+        DownloadState(
+          catalogId: id,
+          modelName: catalog.displayName,
+          progress: 0.0,
+          receivedBytes: 0,
+          totalBytes: catalog.sizeBytes,
+          status: 'downloading',
+        ),
+      );
 
       final total = await _resolveTotalSize(catalog);
 
@@ -381,16 +396,20 @@ OnDeviceLlmService._internal();
       final fragments = await _recoverFragments(destPath, total, parallel);
 
       final downloadedSoFar = fragments.fold<int>(
-          0, (sum, f) => sum + (f.lengthSync()));
+        0,
+        (sum, f) => sum + (f.lengthSync()),
+      );
 
-      _publish(DownloadState(
-        catalogId: id,
-        modelName: catalog.displayName,
-        progress: downloadedSoFar / total,
-        receivedBytes: downloadedSoFar,
-        totalBytes: total,
-        status: 'downloading',
-      ));
+      _publish(
+        DownloadState(
+          catalogId: id,
+          modelName: catalog.displayName,
+          progress: downloadedSoFar / total,
+          receivedBytes: downloadedSoFar,
+          totalBytes: total,
+          status: 'downloading',
+        ),
+      );
 
       // Download any missing byte-ranges concurrently.
       await _downloadRanges(
@@ -415,29 +434,33 @@ OnDeviceLlmService._internal();
         );
       }
 
-      _publish(DownloadState(
-        catalogId: id,
-        modelName: catalog.displayName,
-        progress: 1.0,
-        receivedBytes: total,
-        totalBytes: total,
-        status: 'done',
-      ));
+      _publish(
+        DownloadState(
+          catalogId: id,
+          modelName: catalog.displayName,
+          progress: 1.0,
+          receivedBytes: total,
+          totalBytes: total,
+          status: 'done',
+        ),
+      );
 
       onProgress?.call(1.0, total, total);
       debugPrint('[OnDeviceLLM] Download complete: $finalPath ($size bytes)');
       return finalPath;
     } catch (e, st) {
       debugPrint('[OnDeviceLLM] Download failed: $e\n$st');
-      _publish(DownloadState(
-        catalogId: id,
-        modelName: catalog.displayName,
-        progress: 0.0,
-        receivedBytes: 0,
-        totalBytes: catalog.sizeBytes,
-        status: 'error',
-        error: e.toString(),
-      ));
+      _publish(
+        DownloadState(
+          catalogId: id,
+          modelName: catalog.displayName,
+          progress: 0.0,
+          receivedBytes: 0,
+          totalBytes: catalog.sizeBytes,
+          status: 'error',
+          error: e.toString(),
+        ),
+      );
       rethrow;
     } finally {
       _activeTasks[id] = false;
@@ -455,20 +478,25 @@ OnDeviceLlmService._internal();
   Future<int> _resolveTotalSize(ModelCatalogEntry catalog) async {
     final client = http.Client();
     try {
-      final r = await client.head(Uri.parse(catalog.hfUrl)).timeout(
-            const Duration(seconds: 20),
-          );
+      final r = await client
+          .head(Uri.parse(catalog.hfUrl))
+          .timeout(const Duration(seconds: 20));
       final len = r.contentLength;
       if (len != null && len > 0) return len;
-    } catch (_) {/* fall back to catalog size */}
-    finally {
+    } catch (_) {
+      /* fall back to catalog size */
+    } finally {
       client.close();
     }
     return catalog.sizeBytes;
   }
 
   /// Discovers existing `.partN` fragments so a restarted download resumes.
-  Future<List<File>> _recoverFragments(String destPath, int total, int parts) async {
+  Future<List<File>> _recoverFragments(
+    String destPath,
+    int total,
+    int parts,
+  ) async {
     final frags = <File>[];
     for (var i = 0; i < parts; i++) {
       final f = File('$destPath.part$i');
@@ -501,8 +529,7 @@ OnDeviceLlmService._internal();
 
       // Skip already-written parts.
       final partFile = File('$destPath.part$partIdx');
-      if (await partFile.exists() &&
-          await partFile.length() >= rangeLength) {
+      if (await partFile.exists() && await partFile.length() >= rangeLength) {
         return;
       }
 
@@ -515,7 +542,9 @@ OnDeviceLlmService._internal();
             final req = http.Request('GET', Uri.parse(catalog.hfUrl));
             req.headers['Range'] = 'bytes=$start-$end';
 
-            final res = await client.send(req).timeout(const Duration(minutes: 5));
+            final res = await client
+                .send(req)
+                .timeout(const Duration(minutes: 5));
             if (res.statusCode == 200 || res.statusCode == 206) {
               final sink = partFile.openWrite();
               try {
@@ -559,14 +588,16 @@ OnDeviceLlmService._internal();
         }
       }
       final p = total > 0 ? (got / total).clamp(0.0, 1.0) : 0.0;
-      _publish(DownloadState(
-        catalogId: catalog.id,
-        modelName: catalog.displayName,
-        progress: p,
-        receivedBytes: got,
-        totalBytes: total,
-        status: 'downloading',
-      ));
+      _publish(
+        DownloadState(
+          catalogId: catalog.id,
+          modelName: catalog.displayName,
+          progress: p,
+          receivedBytes: got,
+          totalBytes: total,
+          status: 'downloading',
+        ),
+      );
     });
   }
 
@@ -626,61 +657,80 @@ OnDeviceLlmService._internal();
     String? modelId,
     int contextSize = 4096,
   }) async {
-    await disposeEngine();
-
-    debugPrint('[OnDeviceLLM] Loading model: $modelPath');
-
-    // Pre-flight sanity check: reject obviously-truncated files with a clear
-    // message before llama.cpp tries (and fails) to parse them.
-    final modelFile = File(modelPath);
-    if (!await modelFile.exists()) {
-      throw Exception('Model file not found: $modelPath');
-    }
-    final fileSize = await modelFile.length();
-    if (fileSize < 1024 * 1024) {
-      throw Exception(
-        'Model file is too small (${(fileSize / 1024).toStringAsFixed(0)} KB). '
-        'The file is likely corrupt or truncated. Try downloading it again.',
-      );
-    }
-    debugPrint('[OnDeviceLLM] File size: $fileSize bytes');
-
+    // Loading frees the old context, so it has to wait for a reply that is
+    // still using it, and block new replies until the new model is ready.
+    await _acquireGeneration();
     try {
-      _engine = LlamaEngine(LlamaBackend());
+      await _disposeEngineLocked();
 
-      // Debug level in a debug build, so a failed load leaves the native
-      // llama.cpp error in logcat. Not in release: llama.cpp is chatty enough
-      // at debug level that the FFI logging alone measurably slows the load,
-      // and a warning is all a shipped build has any use for.
-      await _engine!.setLogLevel(
-        kDebugMode ? LlamaLogLevel.debug : LlamaLogLevel.warn,
-      );
+      debugPrint('[OnDeviceLLM] Loading model: $modelPath');
 
-      // loadModel takes a plain string path (NOT ModelSource)
-      await _engine!.loadModel(
-        modelPath,
-        modelParams: ModelParams(
-          gpuLayers: 0, // CPU-only for reliability
-          contextSize: contextSize,
-        ),
-      );
+      // Pre-flight sanity check: reject obviously-truncated files with a clear
+      // message before llama.cpp tries (and fails) to parse them.
+      final modelFile = File(modelPath);
+      if (!await modelFile.exists()) {
+        throw Exception('Model file not found: $modelPath');
+      }
+      final fileSize = await modelFile.length();
+      if (fileSize < 1024 * 1024) {
+        throw Exception(
+          'Model file is too small (${(fileSize / 1024).toStringAsFixed(0)} KB). '
+          'The file is likely corrupt or truncated. Try downloading it again.',
+        );
+      }
+      debugPrint('[OnDeviceLLM] File size: $fileSize bytes');
 
-      _loadedModelPath = modelPath;
-      _loadedModelId = modelId ?? modelPath.split(Platform.pathSeparator).last;
-      _isLoaded = true;
+      try {
+        _engine = LlamaEngine(LlamaBackend());
 
-      debugPrint('[OnDeviceLLM] ✅ Model loaded successfully: $_loadedModelId');
-    } catch (e, stackTrace) {
-      _isLoaded = false;
-      _engine = null;
-      debugPrint('[OnDeviceLLM] ❌ Failed to load model: $e');
-      debugPrint('[OnDeviceLLM] Stack trace: $stackTrace');
-      rethrow;
+        // Debug level in a debug build, so a failed load leaves the native
+        // llama.cpp error in logcat. Not in release: llama.cpp is chatty enough
+        // at debug level that the FFI logging alone measurably slows the load,
+        // and a warning is all a shipped build has any use for.
+        await _engine!.setLogLevel(
+          kDebugMode ? LlamaLogLevel.debug : LlamaLogLevel.warn,
+        );
+
+        // loadModel takes a plain string path (NOT ModelSource)
+        await _engine!.loadModel(
+          modelPath,
+          modelParams: ModelParams(
+            gpuLayers: 0, // CPU-only for reliability
+            contextSize: contextSize,
+          ),
+        );
+
+        _loadedModelPath = modelPath;
+        _loadedModelId =
+            modelId ?? modelPath.split(Platform.pathSeparator).last;
+        _isLoaded = true;
+
+        debugPrint(
+          '[OnDeviceLLM] ✅ Model loaded successfully: $_loadedModelId',
+        );
+      } catch (e, stackTrace) {
+        _isLoaded = false;
+        _engine = null;
+        debugPrint('[OnDeviceLLM] ❌ Failed to load model: $e');
+        debugPrint('[OnDeviceLLM] Stack trace: $stackTrace');
+        rethrow;
+      }
+    } finally {
+      _releaseGeneration();
     }
   }
 
   /// Disposes the current engine and frees resources.
   Future<void> disposeEngine() async {
+    await _acquireGeneration();
+    try {
+      await _disposeEngineLocked();
+    } finally {
+      _releaseGeneration();
+    }
+  }
+
+  Future<void> _disposeEngineLocked() async {
     if (_engine != null) {
       try {
         await _engine!.dispose();
@@ -730,10 +780,7 @@ OnDeviceLlmService._internal();
 
     try {
       final messages = [
-        LlamaChatMessage(
-          role: 'user',
-          content: sanitizeInput(prompt),
-        ),
+        LlamaChatMessage(role: 'user', content: sanitizeInput(prompt)),
       ];
 
       final stream = _engine!.create(
@@ -833,7 +880,8 @@ OnDeviceLlmService._internal();
   Future<String> processClipboardText(String rawText) async {
     if (!_isLoaded || _engine == null) return '';
 
-    final prompt = '''Convert the following raw text into clean, well-structured Markdown:
+    final prompt =
+        '''Convert the following raw text into clean, well-structured Markdown:
 - Add bullet points for lists
 - Format dates with 📅 emoji
 - Make URLs clickable [link](url)
@@ -851,23 +899,31 @@ $rawText''';
   /// Summarizes text using the local model.
   Future<String> summarizeText(String text) async {
     if (!_isLoaded || _engine == null) return '[Model not loaded]';
-    return generate('Summarize the following text in 2-3 concise bullet points:\n\n$text',
-        maxTokens: 256, temperature: 0.3);
+    return generate(
+      'Summarize the following text in 2-3 concise bullet points:\n\n$text',
+      maxTokens: 256,
+      temperature: 0.3,
+    );
   }
 
   /// Extracts action items from text.
   Future<String> extractActionItems(String text) async {
     if (!_isLoaded || _engine == null) return '[Model not loaded]';
-    return generate('Extract action items from the following text as a checklist:\n\n$text',
-        maxTokens: 512, temperature: 0.3);
+    return generate(
+      'Extract action items from the following text as a checklist:\n\n$text',
+      maxTokens: 512,
+      temperature: 0.3,
+    );
   }
 
   /// Expands abbreviated points into fuller explanations.
   Future<String> expandPoints(String text) async {
     if (!_isLoaded || _engine == null) return '[Model not loaded]';
     return generate(
-        'Expand the following abbreviated notes into fuller, more detailed explanations:\n\n$text',
-        maxTokens: 1024, temperature: 0.5);
+      'Expand the following abbreviated notes into fuller, more detailed explanations:\n\n$text',
+      maxTokens: 1024,
+      temperature: 0.5,
+    );
   }
 
   // Diagnostics

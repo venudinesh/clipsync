@@ -8,10 +8,12 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:whisper_flutter_new/whisper_flutter_new.dart';
 
 import '../services/on_device_llm_service.dart';
 import '../services/ai_connection_service.dart';
+import '../services/clipboard_guard.dart';
 import '../services/voice_input_service.dart';
 import '../ui/ui.dart';
 import 'chat_history.dart';
@@ -246,8 +248,6 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
       sent = attachments ?? const <_Attachment>[];
     } else {
       sent = List<_Attachment>.from(_pendingAttachments);
-      _pendingAttachments.clear();
-      _controller.clear();
     }
 
     // Compose what the model actually reads, folding in attachment text.
@@ -264,7 +264,22 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
       }
       modelPrompt = buffer.toString().trim();
     }
-    if (modelPrompt.isEmpty) return;
+    if (modelPrompt.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Add some text, or attach a file with readable text.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!composed) {
+      _pendingAttachments.clear();
+      _controller.clear();
+    }
 
     final shown = visible.isNotEmpty
         ? visible
@@ -535,7 +550,32 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
         }
       }
     } else {
-      await _voiceInput.startRecording();
+      final permission = await Permission.microphone.request();
+      if (!permission.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Microphone permission is needed for voice input.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+      try {
+        await _voiceInput.startRecording();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Could not start recording: '
+                  '${e.toString().split('\n').first}'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
       if (mounted) {
         setState(() => _isRecordingVoice = true);
         _ampSub = _voiceInput.amplitudeStream.listen((amp) {
@@ -770,7 +810,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
           label: 'Copy message',
           onTap: () {
             Navigator.pop(sheetCtx);
-            Clipboard.setData(ClipboardData(text: content));
+            copyText(content);
             _toast('Copied');
           },
         ),
@@ -1162,7 +1202,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
             label: 'Copy transcript',
             onTap: () {
               Navigator.pop(ctx);
-              Clipboard.setData(ClipboardData(text: _transcript));
+              copyText(_transcript);
               _toast('Transcript copied');
             },
           ),
@@ -1650,7 +1690,7 @@ class _ChatViewState extends State<ChatView> with AutomaticKeepAliveClientMixin 
               icon: Icons.content_copy_rounded,
               dense: true,
               onPressed: () {
-                Clipboard.setData(ClipboardData(text: content));
+                copyText(content);
                 _toast('Copied');
               },
             ),

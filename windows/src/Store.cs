@@ -48,6 +48,12 @@ namespace ClipSyncAI
                     // the caller report it.
                     throw;
                 }
+                catch (UnauthorizedAccessException)
+                {
+                    // The same rule for permissions: never rename a store that
+                    // simply could not be opened.
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     Paths.Log("store read " + _name, ex);
@@ -79,7 +85,7 @@ namespace ClipSyncAI
             }
         }
 
-        public void Save()
+        public bool Save()
         {
             lock (_gate)
             {
@@ -93,7 +99,13 @@ namespace ClipSyncAI
                     .Set("v", 1L)
                     .Set("savedAt", Clock.NowMs())
                     .Set("items", arr);
-                byte[] blob = Crypto.Seal(JsonWriter.Write(root));
+                byte[] blob;
+                try { blob = Crypto.Seal(JsonWriter.Write(root)); }
+                catch (Exception ex)
+                {
+                    Paths.Log("store seal " + _name, ex);
+                    return false;
+                }
                 Paths.EnsureRoot();
                 string path = Paths.Store(_name);
                 string tmp = path + ".tmp";
@@ -101,10 +113,12 @@ namespace ClipSyncAI
                 {
                     File.WriteAllBytes(tmp, blob);
                     Swap(tmp, path);
+                    return true;
                 }
                 catch (Exception ex)
                 {
                     Paths.Log("store write " + _name, ex);
+                    return false;
                 }
             }
         }
@@ -124,15 +138,33 @@ namespace ClipSyncAI
             }
             catch (Exception)
             {
-                File.Delete(path);
-                File.Move(tmp, path);
+                // Keep the old file until the new one is in place; a crash in
+                // between must not leave neither.
+                string bak = path + ".bak";
+                try
+                {
+                    if (File.Exists(bak)) File.Delete(bak);
+                    File.Move(path, bak);
+                    File.Move(tmp, path);
+                    try { File.Delete(bak); }
+                    catch (Exception) { }
+                }
+                catch (Exception)
+                {
+                    if (!File.Exists(path) && File.Exists(bak))
+                    {
+                        try { File.Move(bak, path); }
+                        catch (Exception) { }
+                    }
+                    throw;
+                }
             }
         }
 
-        public void Clear()
+        public bool Clear()
         {
             lock (_gate) { Items.Clear(); }
-            Save();
+            return Save();
         }
     }
 
@@ -143,17 +175,22 @@ namespace ClipSyncAI
         {
             string path = Paths.Store(AppDefaults.StoreSettings);
             if (!File.Exists(path)) return new AppSettings();
-            try
+            // No catch-all here: a locked key or settings file must not turn
+            // into default settings, because that would drop the PIN and let
+            // Boot trim the real history under the default cap.
+            string text = Crypto.Open(File.ReadAllBytes(path));
+            if (text == null)
             {
-                string text = Crypto.Open(File.ReadAllBytes(path));
-                if (text == null) return new AppSettings();
-                return AppSettings.FromJson(JsonParser.Parse(text));
+                throw new InvalidDataException(
+                    AppDefaults.StoreSettings + " is unreadable.");
             }
-            catch (Exception ex)
+            JVal root = JsonParser.Parse(text);
+            if (root == null)
             {
-                Paths.Log("settings read", ex);
-                return new AppSettings();
+                throw new InvalidDataException(
+                    AppDefaults.StoreSettings + " is not valid JSON.");
             }
+            return AppSettings.FromJson(root);
         }
 
         public static void Save(AppSettings s)
@@ -168,7 +205,27 @@ namespace ClipSyncAI
                 if (File.Exists(path))
                 {
                     try { File.Replace(tmp, path, null); }
-                    catch (Exception) { File.Delete(path); File.Move(tmp, path); }
+                    catch (Exception)
+                    {
+                        string bak = path + ".bak";
+                        try
+                        {
+                            if (File.Exists(bak)) File.Delete(bak);
+                            File.Move(path, bak);
+                            File.Move(tmp, path);
+                            try { File.Delete(bak); }
+                            catch (Exception) { }
+                        }
+                        catch (Exception)
+                        {
+                            if (!File.Exists(path) && File.Exists(bak))
+                            {
+                                try { File.Move(bak, path); }
+                                catch (Exception) { }
+                            }
+                            throw;
+                        }
+                    }
                 }
                 else File.Move(tmp, path);
             }

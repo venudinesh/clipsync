@@ -257,7 +257,9 @@ namespace ClipSyncAI
             if (old != null && !object.ReferenceEquals(old, engine))
             {
                 LocalEngine local = old as LocalEngine;
-                if (local != null) local.Unload();
+                // Unload can wait for a generation that holds the engine lock;
+                // doing that on the UI thread froze the window.
+                if (local != null) ThreadPool.QueueUserWorkItem(delegate { local.Unload(); });
             }
             Status = status;
             Brain.Model = Ai.ChooseModel(status.Models, Settings.Model);

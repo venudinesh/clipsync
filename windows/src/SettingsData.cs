@@ -181,13 +181,16 @@ namespace ClipSyncAI
         private void Wiped(object sender, EventArgs e)
         {
             Hub.Sheet.Close();
-            Hub.Clips.Clear();
-            Hub.Notes.Clear();
-            Hub.Chats.Clear();
+            // Views must drop live state before the stores are emptied; a
+            // streaming chat otherwise saves itself back into the cleared file.
             Hub.RaiseWiped();
+            bool ok = Hub.Clips.Clear();
+            ok &= Hub.Notes.Clear();
+            ok &= Hub.Chats.Clear();
             Hub.RaiseClips();
             Hub.RaiseNotes();
-            Hub.Say("Everything on this PC has been deleted");
+            if (ok) Hub.Say("Everything on this PC has been deleted");
+            else Hub.Oops("Could not delete everything. Check the disk and try again.");
         }
     }
 }

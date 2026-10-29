@@ -94,15 +94,7 @@ namespace ClipSyncAI
         /// The startup gate: true to run, false to quit. No PIN, no question.
         public static bool Startup()
         {
-            AppSettings s;
-            try
-            {
-                s = SettingsStore.Load();
-            }
-            catch (Exception)
-            {
-                return true;
-            }
+            AppSettings s = SettingsStore.Load();
             if (!Locked(s)) return true;
             return Unlock(s);
         }

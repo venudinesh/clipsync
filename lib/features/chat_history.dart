@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 
+import '../services/clipboard_guard.dart';
 import '../ui/ui.dart';
 
 /// Hive box holding chat transcripts. It carries its own AES key rather than
@@ -589,7 +590,7 @@ class _ChatHistorySheetState extends State<_ChatHistorySheet> {
           label: 'Copy transcript',
           onTap: () {
             Navigator.pop(ctx);
-            Clipboard.setData(ClipboardData(text: s.transcript));
+            copyText(s.transcript);
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Transcript copied'),

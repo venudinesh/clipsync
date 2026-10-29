@@ -21,6 +21,7 @@ import 'package:whisper_flutter_new/whisper_flutter_new.dart';
 import 'services/device_info_service.dart';
 import 'services/ai_connection_service.dart';
 import 'services/biometric_service.dart';
+import 'services/clipboard_guard.dart';
 import 'services/embedding_service.dart';
 import 'services/on_device_llm_service.dart';
 import 'services/secure_storage_service.dart';
@@ -1798,6 +1799,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   /// while the app was away is picked up here, on return.
   Future<void> _captureClipboardOnResume() async {
     if (defaultTargetPlatform != TargetPlatform.android) return;
+    // The switch means capture, not just the background service. Turning it
+    // off must also stop the capture-on-return path.
+    final settings = Hive.box(AppDefaults.hiveSettingsBox);
+    if (settings.get('bgServiceEnabled', defaultValue: true) != true) return;
     try {
       final text = await _clipChannel.invokeMethod<String>('readClipboard');
       final trimmed = text?.trim() ?? '';
@@ -1918,6 +1923,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       }
     });
 
+    // A tile or share received while the activity is already foreground has no
+    // resume to poll on, so native pings us instead.
+    _shareChannel.setMethodCallHandler((call) async {
+      if (call.method == 'externalIntent') {
+        await _pollExternalCapture();
+      }
+    });
+
     // Request notification permission (Android 13+)
     try {
       await _serviceChannel.invokeMethod('requestNotificationPermission');
@@ -1979,6 +1992,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _processIncomingClipboard(String text) async {
     try {
+      if (consumeSelfCopy(text)) {
+        debugPrint('Clipboard: self-copy ignored');
+        return;
+      }
       // Skip if identical to the most recent clip (prevents duplicates from
       // repeated onClipboardChanged callbacks and avoids redundant inference).
       final box = Hive.box(AppDefaults.hiveClipBox);
@@ -3416,7 +3433,7 @@ class _DashboardViewState extends State<DashboardView>
             final body = e.processedMarkdown.trim().isEmpty
                 ? e.rawText
                 : e.processedMarkdown;
-            Clipboard.setData(ClipboardData(text: body));
+            copyText(body);
             _toast('Copied');
           },
         ),
@@ -3456,7 +3473,7 @@ class _DashboardViewState extends State<DashboardView>
           label: 'Copy result',
           onTap: () {
             Navigator.pop(ctx);
-            Clipboard.setData(ClipboardData(text: entry.processedMarkdown));
+            copyText(entry.processedMarkdown);
             _toast('Copied');
           },
         ),
@@ -3465,7 +3482,7 @@ class _DashboardViewState extends State<DashboardView>
           label: 'Copy original',
           onTap: () {
             Navigator.pop(ctx);
-            Clipboard.setData(ClipboardData(text: entry.rawText));
+            copyText(entry.rawText);
             _toast('Original copied');
           },
         ),
@@ -4000,7 +4017,7 @@ class _NotesViewState extends State<NotesView>
     final body = note.title.trim().isEmpty
         ? note.content
         : '${note.title}\n\n${note.content}';
-    Clipboard.setData(ClipboardData(text: body));
+    copyText(body);
     _toast('Note copied');
   }
 
@@ -5030,6 +5047,9 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
     // can never be transcribed (the start path already blocks this earlier).
     if (defaultTargetPlatform == TargetPlatform.linux) {
       setState(() => _isTranscribing = false);
+      try {
+        await File(path).delete();
+      } catch (_) {}
       return;
     }
 
@@ -5078,11 +5098,22 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
           ),
         );
       }
+    } finally {
+      // The recording is a private artefact; keep only the text.
+      try {
+        await File(path).delete();
+      } catch (_) {}
     }
   }
 
   Future<void> _cancelRecording() async {
     await _voiceRecorder.cancelRecording();
+    final path = _voiceRecorder.outputPath;
+    if (path != null) {
+      try {
+        await File(path).delete();
+      } catch (_) {}
+    }
     _ampSubscription?.cancel();
     _ampSubscription = null;
     _recordingTimer?.cancel();
@@ -5100,7 +5131,7 @@ class _OcrVoiceViewState extends State<OcrVoiceView>
   }
 
   void _copyResult(String text) {
-    Clipboard.setData(ClipboardData(text: text));
+    copyText(text);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Text copied to clipboard')),
     );
@@ -7759,7 +7790,9 @@ class _SettingsViewState extends State<SettingsView>
   /// Background capture, on the tab whose name promises it. The same switch is on
   /// the Clips tab, and both write the one setting the service reads.
   Widget _captureSwitch() {
-    final on = widget.isServiceRunning;
+    // The switch is the setting, not the service state: on Android 10+ the
+    // service cannot run, but capture-on-return still follows this value.
+    final on = _settings.get('bgServiceEnabled', defaultValue: true) == true;
     return _switchRow(
       title: 'Capture in the background',
       subtitle: on

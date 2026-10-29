@@ -59,11 +59,11 @@ namespace ClipSyncAI
             Application.ThreadException += OnUiFault;
             AppDomain.CurrentDomain.UnhandledException += OnFault;
             Theme.Scale = Desktop();
-            // The privacy lock stands before the window: a locked app opens
-            // onto the PIN pad, and anything but the right PIN quits.
-            if (!PinLock.Startup()) return;
             try
             {
+                // The privacy lock stands before the window: a locked app opens
+                // onto the PIN pad, and anything but the right PIN quits.
+                if (!PinLock.Startup()) return;
                 Application.Run(new AppWindow());
             }
             catch (Exception ex)

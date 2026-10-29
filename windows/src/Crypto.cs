@@ -102,8 +102,8 @@ namespace ClipSyncAI
                     try { File.Move(path, path + ".unreadable-" + Clock.NowMs()); }
                     catch (Exception) { }
                 }
-                _master = Random(KeyBytes + MacBytes);
-                byte[] blob = ProtectedData.Protect(_master, Entropy, DataProtectionScope.CurrentUser);
+                byte[] master = Random(KeyBytes + MacBytes);
+                byte[] blob = ProtectedData.Protect(master, Entropy, DataProtectionScope.CurrentUser);
                 Paths.EnsureRoot();
                 string temp = path + ".new";
                 try
@@ -118,7 +118,11 @@ namespace ClipSyncAI
                     catch (Exception) { }
                     throw;
                 }
-                return _master;
+                // Only cache it after it is on disk. A failed write must not
+                // leave this process sealing stores with a key nobody can
+                // retrieve on the next launch.
+                _master = master;
+                return master;
             }
         }
 
