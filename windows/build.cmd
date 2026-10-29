@@ -11,6 +11,7 @@ rem
 rem Usage:  build.cmd          tests, then x86 and x64
 rem         build.cmd tests    tests only
 rem         build.cmd app      executables only
+rem         build.cmd build-x64-release   x64 release build only (no tests)
 
 setlocal
 cd /d "%~dp0"
@@ -51,6 +52,7 @@ for %%F in (native\*.dll) do call :res "%%F"
 if not exist build mkdir build
 
 if "%WHAT%"=="app" goto app
+if "%WHAT%"=="build-x64-release" goto build_x64_release
 
 rem The test suite is compiled together with the app's own sources because the app
 rem has no public surface: everything in it is internal, which is the right
@@ -83,6 +85,17 @@ for %%F in (build\ClipSyncAI-x86.exe build\ClipSyncAI-x64.exe) do echo   %%F  %%
 certutil -hashfile build\ClipSyncAI-x86.exe SHA256
 certutil -hashfile build\ClipSyncAI-x64.exe SHA256
 goto done
+
+:build_x64_release
+echo building x64 release only
+mkdir build
+set OUT=build\ClipSyncAI-x64.exe
+echo building %OUT%
+if exist "%OUT%" del /q "%OUT%"
+"%CSC%" %OPTS% -target:winexe -platform:x64 -win32manifest:app.manifest -win32icon:app.ico -out:"%OUT%" %REFS% %RES% src\*.cs
+if errorlevel 1 exit /b 1
+copy /y app.config "%OUT%.config" >nul
+exit /b 0
 
 rem Both executables come from the same sources. The only difference is the word
 rem in the PE header that tells Windows which machine to load it on.
